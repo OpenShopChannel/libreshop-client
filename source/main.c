@@ -9,12 +9,15 @@
 #include <dirent.h>
 
 #include <sandia.h>
+#include <jansson.h>
 
 #include "libs/fshelp.h"
 #include "libs/nethelp.h"
 
 #include "debug.h"
 #include "config.h"
+
+#include "default_config_json.h"
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -121,15 +124,40 @@ int main(int argc, char **argv) {
 
         printf("\n");
 
-        DIR* library_check = opendir(LIBRARY_DIR);
+        FILE* _config = fopen(APPS_DIR "/config.json", "r");
+        #ifdef DEBUG
+        fclose(_config);
+        _config = NULL;
+        #endif
+        if (_config == NULL) {
+            logprint(0, "Writing default configuration.\n");
+            _config = fopen(APPS_DIR "/config.json", "w+");
+            fwrite(default_config_json, default_config_json_size, 1, _config);
+            fseek(_config, 0, SEEK_SET);
+        }
+
+        logprint(0, "Loading configuration.\n");
+        json_error_t error;
+        json_t* config = json_loadf(_config, 0, &error);
+        fclose(_config);
+
+        if (!config) {
+            printf("Could not load configuration. JSON error at line %d: %s\n", error.line, error.text);
+            home_exit(true);
+        }
+        else logprint(1, "Configuration loaded!\n");
+
+        printf("\n");
+
+        DIR* library_check = opendir(REPO_DIR);
         if (!library_check) {
             closedir(library_check);
             logprint(0, "Creating library directory.\n");
         
-            char dirs[3][strlen(LIBRARY_DIR) + 1];
+            char dirs[3][strlen(REPO_DIR) + 1];
             strcpy(dirs[0], "/apps");
             strcpy(dirs[1], APPS_DIR);
-            strcpy(dirs[2], LIBRARY_DIR);
+            strcpy(dirs[2], REPO_DIR);
 
             for (int i = 0; i < 3; i++) {
                 DIR* check = opendir(dirs[i]);
@@ -137,9 +165,7 @@ int main(int argc, char **argv) {
                     closedir(check);
 
                     if (mkdir(dirs[i], 0600) != 0) {
-                        char* dirmsg = malloc(strlen(dirs[i]) + 30);
-                        sprintf(dirmsg, "Creating directory %s failed :(\n", dirs[i]);
-                        logprint(2, dirmsg);
+                        printf("Creating directory %s failed :(\n", dirs[i]);
                         home_exit(true);
                     }
                 }
@@ -150,29 +176,170 @@ int main(int argc, char **argv) {
             closedir(library_check);
             logprint(0, "Cleaning library directory.\n");
         
-            if (delete_directory(LIBRARY_DIR) != 0) {
+            if (delete_directory(REPO_DIR "/") != 0) {
                 logprint(2, "Removing library directory failed :(\n");
                 home_exit(true);
             }
 
-            if (mkdir(LIBRARY_DIR, 0600) != 0) {
+            if (mkdir(REPO_DIR, 0600) != 0) {
                 logprint(2, "Creating library directory failed :(\n");
                 home_exit(true);
             }
         }
+        logprint(1, "Done!\n");
 
-        logprint(0, "Downloading library.\n");
-        sandia s = sandia_create("libreshop.donut.eu.org", 80);
-        sandia_get_request(&s, "/library.zip", true, false);
+        printf("\n");
 
-        FILE* library = fopen(LIBRARY_FILE, "w");
-        sandia_ext_write_to_file(&s, library);
-        fclose(library);
+        json_t* repositories = json_object_get(config, "repositories");
+        for (int i = 0; i < json_array_size(repositories); i++) {
+            char* hostname = strdup(json_string_value(json_array_get(repositories, i)));
 
-        sandia_close(&s);
+            FILE* temp = fopen(APPS_DIR "/temp.json", "w+");
 
-        logprint(1, "Library downloaded!\n");
+            sandia s_info = sandia_create(hostname, 80);
+            sandia_add_header(&s_info, "User-Agent", USERAGENT);
+            sandia_get_request(&s_info, "/api/v3/information", true, false);
 
+            sandia_ext_write_to_file(&s_info, temp);
+            fseek(temp, 0, SEEK_SET);
+            sandia_close(&s_info);
+
+            json_error_t error;
+            json_t* information = json_loadf(temp, 0, &error);
+            if (!information) {
+                printf("JSON error on line %d: %s\nWhile syncing repository %s, possibly a network error?\n", error.line, error.text, hostname);
+                
+                fclose(temp);
+                free(hostname);
+                home_exit(true);
+            }
+
+            int appsamount = json_integer_value(json_object_get(information, "available_apps_count"));
+
+            json_t* name = json_object_get(information, "name");
+            logprint(0, "Syncing repository ");
+            printf("%s\n", json_string_value(name));
+            logprint(0, "-------------------");
+            for (int i = 0; i < json_string_length(name); i++) {
+                printf("-");
+            }
+            printf("\n");
+
+            json_t* description = json_object_get(information, "description");
+            logprint(0, "Description: ");
+            printf("%s\n", json_string_value(description));
+            
+            json_t* provider = json_object_get(information, "provider");
+            logprint(0, "Provided by ");
+            printf("%s\n", json_string_value(provider));
+
+            char* directory = malloc(strlen(REPO_DIR) + 1 + strlen(hostname) + 1); // plus slash plus nul
+            sprintf(directory, "%s/%s", REPO_DIR, hostname);
+            if (mkdir(directory, 0660) != 0) {
+                printf("Cannot create directory %s.\n", directory);
+                free(directory);
+                json_decref(information);
+                fclose(temp);
+                free(hostname);
+                home_exit(true);
+            }
+
+            json_t* categories = json_object_get(information, "available_categories");
+            int categoryamount = json_array_size(categories);
+            for (int j = 0; j < categoryamount; j++) {
+                json_t* category = json_array_get(categories, j);
+                const char* categoryname = json_string_value(json_object_get(category, "name"));
+
+                char* categorynamepath = malloc(strlen(directory) + 1 + strlen(categoryname) + 6); // plus slash plus .json plus nul
+                sprintf(categorynamepath, "%s/%s.json", directory, categoryname);
+
+                if (json_dump_file(category, categorynamepath, 0) != 0) {
+                    printf("Failed writing %s.\n", categorynamepath);
+                    free(categorynamepath);
+                    free(directory);
+                    free(hostname);
+                    json_decref(information);
+                    fclose(temp);
+                    home_exit(true);
+                }
+                
+                // place nul instead of dot in file extension,
+                // turning it into a folder path (with no trailing /)
+                categorynamepath[strlen(categorynamepath) - 5] = '\0';
+                         if (fseek(temp, 1, SEEK_CUR) == 0) {
+                fseek(temp, -1, SEEK_CUR);
+                fprintf(temp, "\n");
+            }
+   if (mkdir(categorynamepath, 0660) != 0) {
+                    printf("Failed creating directory %s.\n", categorynamepath);
+                    free(categorynamepath);
+                    free(directory);
+                    free(hostname);
+                    json_decref(information);
+                    fclose(temp);
+                    home_exit(true);
+                }
+
+                free(categorynamepath);
+            }
+            logprint(0, "Processed ");
+            printf("%d categor", categoryamount);
+            if (categoryamount == 1) printf("y\n");
+            else printf("ies\n");
+            
+            json_decref(information);
+
+            sandia s_cont = sandia_create(hostname, 80);
+            sandia_add_header(&s_cont, "User-Agent", USERAGENT);
+            sandia_get_request(&s_cont, "/api/v3/contents", true, false);
+
+            fseek(temp, 0, SEEK_SET);
+            sandia_ext_write_to_file(&s_cont, temp);
+            fseek(temp, 0, SEEK_SET);
+            sandia_close(&s_cont);
+
+            json_t* contents = json_loadf(temp, JSON_DISABLE_EOF_CHECK, &error);
+            if (!contents) {
+                printf("JSON error on line %d: %s\nWhile obtaining content of %s - possibly a network error?\n", error.line, error.text, hostname);
+                fclose(temp);
+                free(hostname);
+                free(directory);
+                home_exit(true);
+            }
+
+            for (int j = 0; j < appsamount; j++) {
+                json_t* app = json_array_get(contents, j);
+                const char* slug = json_string_value(json_object_get(app, "slug"));
+                const char* categoryname = json_string_value(json_object_get(app, "category"));
+                char* slugloc = malloc(strlen(directory) + 1 + strlen(categoryname) + 1 + strlen(slug) + 6); // plus slash plus slash plus .json plus nul
+                sprintf(slugloc, "%s/%s/%s.json", directory, categoryname, slug);
+
+                if (json_dump_file(app, slugloc, 0) != 0) {
+                    printf("Failed writing %s.\n", slugloc);
+                    json_decref(contents);
+                    free(slugloc);
+                    free(directory);
+                    free(hostname);
+                    fclose(temp);
+                    home_exit(true);
+                }
+
+                free(slugloc);
+            }
+
+            logprint(0, "Processed ");
+            printf("%d app", appsamount);
+            if (appsamount != 1) printf("s");
+            printf("\n");
+
+            json_decref(contents);
+            free(directory);
+            fclose(temp);
+            free(hostname);
+        }
+
+        printf("\n");
+        logprint(1, "Syncing complete!\n");
         debug_npause();
 	
         return 0;
