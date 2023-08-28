@@ -150,6 +150,7 @@ int main(int argc, char **argv) {
 
         printf("\n");
 
+        /*
         DIR* library_check = opendir(REPO_DIR);
         if (!library_check) {
             closedir(library_check);
@@ -233,8 +234,8 @@ int main(int argc, char **argv) {
             logprint(0, "Provided by ");
             printf("%s\n", json_string_value(provider));
 
-            char* directory = malloc(strlen(REPO_DIR) + 1 + strlen(hostname) + 1); // plus slash plus nul
-            sprintf(directory, "%s/%s", REPO_DIR, hostname);
+            char* directory = malloc(strlen(REPO_DIR) + 1 + strlen(hostname) + 1 + 5 + 2); // plus slash plus nul plus .json
+            sprintf(directory, "%s/D_%s", REPO_DIR, hostname);
             if (mkdir(directory, 0660) != 0) {
                 printf("Cannot create directory %s.\n", directory);
                 free(directory);
@@ -243,6 +244,29 @@ int main(int argc, char **argv) {
                 free(hostname);
                 home_exit(true);
             }
+            
+            int directoryLen = strlen(directory);
+            directory[directoryLen] = '.';
+            directory[directoryLen + 1] = 'j';
+            directory[directoryLen + 2] = 's';
+            directory[directoryLen + 3] = 'o';
+            directory[directoryLen + 4] = 'n';
+            directory[directoryLen + 5] = '\0';
+            
+            int variationIndex = strlen(REPO_DIR) + 1;
+            directory[variationIndex] = 'I';
+
+            if (json_dump_file(information, directory, 0) != 0) {
+                printf("Cannot write to file %s.\n", directory);
+                free(directory);
+                json_decref(information);
+                fclose(temp);
+                free(hostname);
+                home_exit(true);
+            }
+
+            directory[variationIndex] = 'D';
+            directory[directoryLen] = '\0';
 
             json_t* categories = json_object_get(information, "available_categories");
             int categoryamount = json_array_size(categories);
@@ -250,9 +274,10 @@ int main(int argc, char **argv) {
                 json_t* category = json_array_get(categories, j);
                 const char* categoryname = json_string_value(json_object_get(category, "name"));
 
-                char* categorynamepath = malloc(strlen(directory) + 1 + strlen(categoryname) + 6); // plus slash plus .json plus nul
-                sprintf(categorynamepath, "%s/%s.json", directory, categoryname);
+                char* categorynamepath = malloc(strlen(directory) + 1 + strlen(categoryname) + 1); // plus slash  plus nul
+                sprintf(categorynamepath, "%s/%s", directory, categoryname);
 
+                /-*
                 if (json_dump_file(category, categorynamepath, 0) != 0) {
                     printf("Failed writing %s.\n", categorynamepath);
                     free(categorynamepath);
@@ -266,11 +291,14 @@ int main(int argc, char **argv) {
                 // place nul instead of dot in file extension,
                 // turning it into a folder path (with no trailing /)
                 categorynamepath[strlen(categorynamepath) - 5] = '\0';
-                         if (fseek(temp, 1, SEEK_CUR) == 0) {
-                fseek(temp, -1, SEEK_CUR);
-                fprintf(temp, "\n");
-            }
-   if (mkdir(categorynamepath, 0660) != 0) {
+                *-/
+
+                if (fseek(temp, 1, SEEK_CUR) == 0) {
+                    fseek(temp, -1, SEEK_CUR);
+                    fprintf(temp, "\n");
+                }
+
+                if (mkdir(categorynamepath, 0660) != 0) {
                     printf("Failed creating directory %s.\n", categorynamepath);
                     free(categorynamepath);
                     free(directory);
@@ -340,6 +368,7 @@ int main(int argc, char **argv) {
 
         printf("\n");
         logprint(1, "Syncing complete!\n");
+        */
 
         start_tui(config);
 
