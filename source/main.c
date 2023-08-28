@@ -125,33 +125,6 @@ int main(int argc, char **argv) {
 
         printf("\n");
 
-        FILE* _config = fopen(APPS_DIR "/config.json", "r");
-        #ifdef ALWAYS_DEFAULT_CONFIG
-        fclose(_config);
-        _config = NULL;
-        #endif
-        if (_config == NULL) {
-            logprint(0, "Writing default configuration.\n");
-            _config = fopen(APPS_DIR "/config.json", "w+");
-            fwrite(default_config_json, default_config_json_size, 1, _config);
-            fseek(_config, 0, SEEK_SET);
-        }
-
-        logprint(0, "Loading configuration.\n");
-        json_error_t error;
-        json_t* config = json_loadf(_config, 0, &error);
-        fclose(_config);
-
-        if (!config) {
-            printf("Could not load configuration. JSON error at line %d: %s\n", error.line, error.text);
-            home_exit(true);
-        }
-        else logprint(1, "Configuration loaded!\n");
-
-        printf("\n");
-
-        json_object_set(config, "temp", json_object());
-
         #ifndef SKIP_LIBRARY_BOOT
         DIR* library_check = opendir(REPO_DIR);
         if (!library_check) {
@@ -191,6 +164,33 @@ int main(int argc, char **argv) {
             }
         }
         logprint(1, "Done!\n");
+
+        printf("\n");
+
+        FILE* _config = fopen(APPS_DIR "/config.json", "r");
+        #ifdef ALWAYS_DEFAULT_CONFIG
+        fclose(_config);
+        _config = NULL;
+        #endif
+        if (_config == NULL) {
+            logprint(0, "Writing default configuration.\n");
+            _config = fopen(APPS_DIR "/config.json", "w+");
+            fwrite(default_config_json, default_config_json_size, 1, _config);
+            fseek(_config, 0, SEEK_SET);
+        }
+
+        logprint(0, "Loading configuration.\n");
+        json_error_t error;
+        json_t* config = json_loadf(_config, 0, &error);
+        fclose(_config);
+
+        if (!config) {
+            printf("Could not load configuration. JSON error at line %d: %s\n", error.line, error.text);
+            home_exit(true);
+        }
+        else logprint(1, "Configuration loaded!\n");
+
+        json_object_set(config, "temp", json_object());
 
         json_t* repositories = json_object_get(config, "repositories");
         for (int i = 0; i < json_array_size(repositories); i++) {
