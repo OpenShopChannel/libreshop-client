@@ -150,7 +150,6 @@ int main(int argc, char **argv) {
 
         printf("\n");
 
-        /*
         DIR* library_check = opendir(REPO_DIR);
         if (!library_check) {
             closedir(library_check);
@@ -341,7 +340,6 @@ int main(int argc, char **argv) {
 
         printf("\n");
         logprint(1, "Syncing complete!\n");
-        */
 
         start_tui(config);
 
