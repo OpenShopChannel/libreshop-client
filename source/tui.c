@@ -116,6 +116,13 @@ void print_bottombar(int limit, int offset, int file, char* bottom) {
     free(wholeline);
 }
 
+void app_info(json_t* config, json_t* app) {
+    clear_screen();
+    printf("app name: %s\n", json_string_value(json_object_get(app, "name")));
+    printf("by %s\n", json_string_value(json_object_get(app, "author")));
+    debug_npause();
+}
+
 void surf_category(json_t* config, const char* hostname, const char* name, json_t* category) {
     json_error_t error;
 
@@ -213,9 +220,7 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
             home_exit(true);
         }
         else if (ret == 1) {
-            clear_screen();
-            printf("app here index %d\n", index);
-            debug_npause();
+            app_info(config, json_object_get(temp, json_string_value(json_array_get(temp_arr, index))));
         }
     }
 
