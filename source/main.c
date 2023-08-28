@@ -150,7 +150,6 @@ int main(int argc, char **argv) {
 
         printf("\n");
 
-        /*
         DIR* library_check = opendir(REPO_DIR);
         if (!library_check) {
             closedir(library_check);
@@ -277,7 +276,7 @@ int main(int argc, char **argv) {
                 char* categorynamepath = malloc(strlen(directory) + 1 + strlen(categoryname) + 1); // plus slash  plus nul
                 sprintf(categorynamepath, "%s/%s", directory, categoryname);
 
-                /-*
+                /*
                 if (json_dump_file(category, categorynamepath, 0) != 0) {
                     printf("Failed writing %s.\n", categorynamepath);
                     free(categorynamepath);
@@ -291,7 +290,7 @@ int main(int argc, char **argv) {
                 // place nul instead of dot in file extension,
                 // turning it into a folder path (with no trailing /)
                 categorynamepath[strlen(categorynamepath) - 5] = '\0';
-                *-/
+                */
 
                 if (fseek(temp, 1, SEEK_CUR) == 0) {
                     fseek(temp, -1, SEEK_CUR);
@@ -368,7 +367,6 @@ int main(int argc, char **argv) {
 
         printf("\n");
         logprint(1, "Syncing complete!\n");
-        */
 
         start_tui(config);
 
