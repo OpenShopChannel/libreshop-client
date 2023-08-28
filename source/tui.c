@@ -116,6 +116,115 @@ void print_bottombar(int limit, int offset, int file, char* bottom) {
     free(wholeline);
 }
 
+void surf_category(json_t* config, const char* hostname, const char* name, json_t* category) {
+    json_error_t error;
+
+    const char* categoryname = json_string_value(json_object_get(category, "display_name"));
+    const char* catslug = json_string_value(json_object_get(category, "name"));
+
+    char* directory = malloc(strlen(REPO_DIR) + 1 + 2 + strlen(hostname) + 1 + strlen(catslug) + 1);
+    sprintf(directory, REPO_DIR "/D_%s/%s", hostname, catslug);
+
+    char* jsonname = malloc(strlen(hostname) + 1 + strlen(catslug) + 1 + 2);
+    sprintf(jsonname, "%s+%s", hostname, catslug);
+    for (int i = 0; i < strlen(jsonname); i++) {
+        if (jsonname[i] == '.') jsonname[i] = '_';
+    }
+    
+    char* jsonname_arr = malloc(strlen(jsonname) + 3);
+    sprintf(jsonname_arr, "D_%s", jsonname);
+
+    json_t* widetemp = json_object_get(config, "temp");
+    json_t* temp = json_object_get(widetemp, jsonname);
+
+    int appsamount = 0;
+    if (!temp) {
+        json_object_set(widetemp, jsonname, json_object());
+        temp = json_object_get(widetemp, jsonname);
+        json_object_set(widetemp, jsonname_arr, json_array());
+        json_t* temptemp_arr = json_object_get(widetemp, jsonname_arr);
+
+        DIR* dir = opendir(directory);
+        if (dir == NULL) {
+            printf("Could not open %s.\n", directory);
+            free(directory);
+            free(jsonname);
+            free(jsonname_arr);
+            home_exit(true);
+        }
+        struct dirent* item;
+
+        while ((item = readdir(dir)) != NULL) {
+            if (strcmp(item->d_name, ".") == 0 || strcmp(item->d_name, "..") == 0) continue;
+            int itemlen = strlen(directory) + 1 + strlen(item->d_name);
+            char* itempath = malloc(itemlen + 1);
+            sprintf(itempath, "%s/%s", directory, item->d_name);
+
+            json_t* app = json_load_file(itempath, 0, &error);
+            if (!app) {
+                free(itempath);
+                free(directory);
+                free(jsonname);
+                free(jsonname_arr);
+                home_exit(true);
+            }
+
+            const char* appname = json_string_value(json_object_get(app, "name"));
+            json_object_set(temp, appname, app);
+            json_array_append(temptemp_arr, json_string(appname));
+
+            appsamount++;
+            free(itempath);
+        }
+
+        closedir(dir);
+    }
+    else {
+        appsamount = json_array_size(json_object_get(widetemp, jsonname_arr));
+    }
+    json_t* temp_arr = json_object_get(widetemp, jsonname_arr);
+
+    char* title = malloc(8 + strlen(name) + 3 + strlen(categoryname) + 1);
+    sprintf(title, "Surfing %s > %s", name, categoryname);
+
+    int index = 0;
+    int offset = 0;
+    while(true) {
+        clear_screen();
+        print_topbar(title);
+
+        int printable = MIN(25, appsamount);
+        for (int i = 0; i < (offset + printable); i++) {
+            json_t* item = json_array_get(temp_arr, i);
+            if (i < offset) continue;
+            i -= offset;
+            print_cursor(i, index);
+            printf("%s\n", json_string_value(item));
+            i += offset;
+        }
+
+        print_bottombar(appsamount, offset, printable - 1, "A to engage, B for back, HOME to exit");
+        int ret = process_inputs(appsamount, &offset, &index);
+        if (ret == 2) break;
+        else if (ret == -1) {
+            free(title);
+            free(directory);
+            free(jsonname);
+            home_exit(true);
+        }
+        else if (ret == 1) {
+            clear_screen();
+            printf("app here index %d\n", index);
+            debug_npause();
+        }
+    }
+
+    free(title);
+    free(directory);
+    free(jsonname);
+    free(jsonname_arr);
+}
+
 void surf_repository(json_t* config, const char* hostname) {
     json_error_t error;
 
@@ -160,9 +269,7 @@ void surf_repository(json_t* config, const char* hostname) {
             home_exit(true);
         }
         else if (ret == 1) {
-            clear_screen();
-            printf("apps here\n");
-            debug_npause();
+            surf_category(config, hostname, name, json_array_get(categories, index));
         }
     }
 
@@ -185,41 +292,43 @@ void start_tui(json_t* config) {
     int reposamount = json_array_size(repositories);
     int index = 0;
     int offset = 0;
-    while(true) {
-        clear_screen();
-        print_topbar("Pick a repository");
+    for (int i = 0; true; i++) {
+        if (i != 0 || reposamount != 1) {
+            clear_screen();
+            print_topbar("Pick a repository");
     
-        rewinddir(repos);
+            rewinddir(repos);
         
-        int file = -1;
-        int skipped = offset;
-        while ((item = readdir(repos)) != NULL) {
-            if (strcmp(item->d_name, ".") == 0 || strcmp(item->d_name, "..") == 0) continue;
-            if (item->d_name[0] == 'D') continue;
-            if (skipped > 0) {
-                skipped--;
-                continue;
-            }
-            file++;
-            if (file >= 25) break;
+            int file = -1;
+            int skipped = offset;
+            while ((item = readdir(repos)) != NULL) {
+                if (strcmp(item->d_name, ".") == 0 || strcmp(item->d_name, "..") == 0) continue;
+                if (item->d_name[0] == 'D') continue;
+                if (skipped > 0) {
+                    skipped--;
+                    continue;
+                }
+                file++;
+                if (file >= 25) break;
 
-            char* filepath = malloc(strlen(REPO_DIR) + 1 + strlen(item->d_name) + 1); // plus slash plus nul
-            sprintf(filepath, "%s/%s", REPO_DIR, item->d_name);
+                char* filepath = malloc(strlen(REPO_DIR) + 1 + strlen(item->d_name) + 1); // plus slash plus nul
+                sprintf(filepath, "%s/%s", REPO_DIR, item->d_name);
             
-            json_t* repo = json_load_file(filepath, 0, &error);
-            const char* provider = json_string_value(json_object_get(repo, "provider"));
-            const char* name = json_string_value(json_object_get(repo, "name"));
+                json_t* repo = json_load_file(filepath, 0, &error);
+                const char* provider = json_string_value(json_object_get(repo, "provider"));
+                const char* name = json_string_value(json_object_get(repo, "name"));
 
-            print_cursor(file, index);
-            printf("%s: %s\n", provider, name);
+                print_cursor(file, index);
+                printf("%s: %s\n", provider, name);
 
-            json_decref(repo);
-            free(filepath);
+                json_decref(repo);
+                free(filepath);
+            }
+
+
+            print_bottombar(reposamount, offset, file, "A to engage, 1 for settings, HOME to exit");
         }
-
-
-        print_bottombar(reposamount, offset, file, "A to engage, 1 for settings, HOME to exit");
-        int ret = process_inputs(reposamount, &offset, &index);
+        int ret = (i == 0 && reposamount == 1) ? 1 : process_inputs(reposamount, &offset, &index);
 
         if (ret == -1) break;
         else if (ret == 1) {

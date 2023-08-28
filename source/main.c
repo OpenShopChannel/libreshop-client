@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
         printf("\n");
 
         FILE* _config = fopen(APPS_DIR "/config.json", "r");
-        #ifdef DEBUG
+        #ifdef ALWAYS_DEFAULT_CONFIG
         fclose(_config);
         _config = NULL;
         #endif
@@ -150,6 +150,9 @@ int main(int argc, char **argv) {
 
         printf("\n");
 
+        json_object_set(config, "temp", json_object());
+
+        #ifndef SKIP_LIBRARY_BOOT
         DIR* library_check = opendir(REPO_DIR);
         if (!library_check) {
             closedir(library_check);
@@ -367,9 +370,10 @@ int main(int argc, char **argv) {
 
         printf("\n");
         logprint(1, "Syncing complete!\n");
+        #endif
 
         start_tui(config);
-
+        
         clear_screen();
         printf("Exiting...\n");
 
