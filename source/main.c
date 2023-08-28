@@ -16,6 +16,7 @@
 
 #include "debug.h"
 #include "config.h"
+#include "tui.h"
 
 #include "default_config_json.h"
 
@@ -149,6 +150,7 @@ int main(int argc, char **argv) {
 
         printf("\n");
 
+        /*
         DIR* library_check = opendir(REPO_DIR);
         if (!library_check) {
             closedir(library_check);
@@ -188,8 +190,6 @@ int main(int argc, char **argv) {
         }
         logprint(1, "Done!\n");
 
-        printf("\n");
-
         json_t* repositories = json_object_get(config, "repositories");
         for (int i = 0; i < json_array_size(repositories); i++) {
             char* hostname = strdup(json_string_value(json_array_get(repositories, i)));
@@ -217,6 +217,7 @@ int main(int argc, char **argv) {
             int appsamount = json_integer_value(json_object_get(information, "available_apps_count"));
 
             json_t* name = json_object_get(information, "name");
+            printf("\n");
             logprint(0, "Syncing repository ");
             printf("%s\n", json_string_value(name));
             logprint(0, "-------------------");
@@ -340,7 +341,13 @@ int main(int argc, char **argv) {
 
         printf("\n");
         logprint(1, "Syncing complete!\n");
-        debug_npause();
-	
-        return 0;
+        */
+
+        start_tui(config);
+
+        clear_screen();
+        printf("Exiting...\n");
+
+        json_decref(config);
+        exit(0);
 }
