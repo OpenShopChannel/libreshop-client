@@ -217,7 +217,9 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
             free(title);
             free(directory);
             free(jsonname);
-            home_exit(true);
+            clear_screen();
+            printf("Exiting...\n");
+            exit(0);
         }
         else if (ret == 1) {
             app_info(config, json_object_get(temp, json_string_value(json_array_get(temp_arr, index))));
@@ -271,7 +273,9 @@ void surf_repository(json_t* config, const char* hostname) {
         else if (ret == -1) {
             free(file);
             free(title);
-            home_exit(true);
+            clear_screen();
+            printf("Exiting...\n");
+            exit(0);
         }
         else if (ret == 1) {
             surf_category(config, hostname, name, json_array_get(categories, index));
