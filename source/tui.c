@@ -3,15 +3,20 @@
 #include <dirent.h>
 #include <stdbool.h>
 #include <wiiuse/wpad.h>
+#include <time.h>
+#include <math.h>
 
-// needed for MAX
+// needed for MIN
 #include <sys/param.h>
 
+#include <sandia.h>
 #include <jansson.h>
 
 #include "debug.h"
 #include "config.h"
 #include "main.h"
+
+#include "minizip-wii/unzip.h"
 
 void clear_screen() {
     printf("\x1b[2J");
@@ -31,7 +36,11 @@ void print_topbar(char* msg) {
 int process_inputs(int limit, int* offset, int* index) {
     int canDisplayAmount = MIN(25, limit - *(int*)offset);
     int maxOffset = MAX(0, limit - canDisplayAmount);
-    
+    int endOfIndex = *(int*)offset + canDisplayAmount;
+
+    printf("\x1b[27;20H");
+    printf("   l %d o %d i %d cDA %d mO %d eOI %d   ", limit, *(int*)offset, *(int*)index, canDisplayAmount, maxOffset, endOfIndex);
+
     int ret = 0;
     while(true) {
         WPAD_ScanPads();
@@ -39,17 +48,19 @@ int process_inputs(int limit, int* offset, int* index) {
         u32 pressed = WPAD_ButtonsDown(0);
         if (pressed & WPAD_BUTTON_DOWN) {
             (*index)++;
-            if (*(int*)index >= canDisplayAmount) {
-                (*index)--;
+            if (*(int*)index >= endOfIndex) {
                 (*offset)++;
                 if (*(int*)offset > maxOffset) (*offset)--;
             }
+            if (*(int*)index >= limit) (*index)--;
             break;
         }
         else if (pressed & WPAD_BUTTON_UP) {
             (*index)--;
             if (*(int*)index < 0) {
                 (*index)++;
+            }
+            if (*(int*)index < *(int*)offset) {
                 (*offset)--;
                 if (*(int*)offset < 0) (*offset)++;
             }
@@ -116,81 +127,276 @@ void print_bottombar(int limit, int offset, int file, char* bottom) {
     free(wholeline);
 }
 
-void app_info(json_t* config, json_t* app) {
+void progress_bar(int percent, int line) {
+    int bars = floorf(percent * 0.71);
+    printf("\x1b[%d;3H", line);
+    char buf[72];
+    for (int i = 0; i < 71; i++) {
+        if (i < bars) buf[i] = '#';
+        else buf[i] = ' ';
+    }
+    buf[71] = '\0';
+    printf("%s", buf);
+
+    printf("\x1b[2B\x1b[4D");
+    for (int i = 0; i < (3 - intlen(percent)); i++) {
+        printf(" ");
+    }
+    printf("%d", percent);
+}
+
+void download_app(const char* appname, const char* _hostname, json_t* app) {
     clear_screen();
-    printf("app name: %s\n", json_string_value(json_object_get(app, "name")));
-    printf("by %s\n", json_string_value(json_object_get(app, "author")));
-    debug_npause();
+
+    json_t* urls = json_object_get(app, "url");
+    json_t* sizes = json_object_get(app, "file_size");
+
+    char* title = malloc(12 + strlen(appname) + 1);
+    sprintf(title, "Downloading %s", appname);
+    char* hostname = strdup(_hostname);
+
+    clear_screen();
+    print_topbar(title);
+
+    for (int i = 0; i < 25; i++) {
+        if (i == 11 || i == 13) printf(PGLN);
+        else if (i == 12) printf(PGLC);
+        else if (i == 14) printf("%s", PGLB);
+        else printf("\n");
+    }
+
+    print_bottombar(0, 0, 24, "Please wait until the bars finish.");
+    // clean out the "showing 1-0 of 0" text
+    printf("\x1b[27;1H                ");
+
+    char* fullurl = strdup(json_string_value(json_object_get(urls, "zip")));
+    int urlcount = 0;
+    int fullurllen = strlen(fullurl);
+    for (int i = 0; i < strlen(fullurl); i++) {
+            if (fullurl[i] == '/') {
+            urlcount++;
+            if (urlcount < 3) continue;
+            for (int j = i; j < fullurllen; j++) {
+                fullurl[j - i] = fullurl[j];
+            }
+            fullurl[fullurllen - i] = '\0';
+            break;
+        }
+    }
+
+    sandia s_dl = sandia_create(hostname, 80);
+    sandia_add_header(&s_dl, "User-Agent", USERAGENT);
+    sandia_get_request(&s_dl, fullurl, true, false);
+
+    FILE* fp = fopen(APPS_DIR "/temp.zip", "w");
+    char buf[512];
+    int received = 0;
+    int current = 0;
+    float total = json_integer_value(json_object_get(sizes, "zip_compressed")) / 100;
+    while ((received = net_recv(s_dl._sandia_socket._fd, buf, 512, 0)) > 0) {
+        current += received;
+        int percent = current / total;
+        
+        progress_bar(percent, 13);
+
+        fwrite(buf, 1, received, fp);
+    }
+    fclose(fp);
+
+    /*
+    printf("\x1b[1;0H");
+    for (int i = 0; i < 25; i++) {
+        printf("%d\n", i);
+    }
+    */
+
+    printf("\x1b[9;0H");
+    for (int i = 0; i < 9; i++) {
+        if (i == 0 || i == 2 || i == 5 || i == 7) printf(PGLN);
+        else if (i == 1 || i == 6) printf(PGLC);
+        else if (i == 3) printf("%s", PGIN);
+        else if (i == 4) printf(BLNK);
+        else if (i == 8) printf("%s", PGEX);
+    }
+
+    unzFile* zip = unzOpen(APPS_DIR "/temp.zip");
+    unz_global_info info;
+    unzGetGlobalInfo(zip, &info);
+
+    int entryamount = info.number_entry;
+    for (int i = 0; i < entryamount; i++) {
+        char dir[256];
+        unz_file_info info;
+        unzGetCurrentFileInfo(zip, &info, dir, 256, NULL, 0, NULL, 0);
+
+        int slashes = 0;
+        int dirlen = strlen(dir);
+        for (int j = 0; j < dirlen; j++) {
+            if (dir[j] == '/') slashes++;
+        }
+        int slashes2 = 0;
+        char backup = dir[0];
+        char backup2 = dir[0];
+        if (slashes != 0) {
+            for (int j = 0; j < dirlen; j++) {
+                if (dir[j] == '/') {
+                    char* path = malloc(j + 2);
+                    for (int k = 0; k <= j; k++) {
+                        path[k] = k == 0 ? '/' : dir[k - 1];
+                    }
+                    path[j + 1] = '\0';
+
+                    printf("\nchecking %s\n", path);
+
+                    DIR* check = opendir(path);
+                    if (check != NULL) closedir(check);
+                    else {
+                        if (mkdir(path, 0660) != 0) {
+                            printf("Failed creating %s.\n", path);
+                            home_exit(true);
+                        }
+                    }
+
+                    free(path);
+
+                    slashes2++;
+                    if (slashes == slashes2) {
+                        for (int k = j; k > 0; k--) {
+                            dir[k] = dir[k - 1];
+                        }
+                        dir[0] = '/';
+                    
+                        slashes = j + 1;
+                        backup = dir[slashes];
+                        dir[slashes] = '/';
+                    
+                        slashes2 = j + 2;
+                        backup2 = dir[slashes2];
+                        dir[slashes2] = '\0';
+                    
+                        break;
+                    }
+                }
+            }
+        }
+
+        dir[slashes] = backup;
+        dir[slashes2] = backup2;
+        
+        char* filename = malloc(dirlen + 2);
+        strcpy(filename, dir);
+        filename[dirlen] = '-';
+        filename[dirlen + 1] = '\0';
+        for (int j = dirlen; j >= slashes2; j--) {
+            filename[j] = filename[j - 1];
+        }
+        filename[slashes] = '/';
+
+        printf("\x1b[12;0H" BLNP "\x1b[3C%%\x1b[%dD (%d/%d) Extracting file %s", 3 + strlen(BLNP), i + 1, entryamount, filename);
+
+        FILE* fp = fopen(filename, "wb");
+        if (fp == NULL) {
+            printf("Cannot open %s.\n", filename);
+            home_exit(true);
+        }
+        
+        unzOpenCurrentFile(zip);
+        int bufsize = 1024;
+        char buf[bufsize];
+        int fine = 0;
+        float total = info.uncompressed_size;
+        int received = 0;
+        while ((fine = unzReadCurrentFile(zip, buf, bufsize)) > 0) {
+            received += fine;
+            int percent = (received / total) * 100;
+            progress_bar(percent, 10);
+            fwrite(buf, fine, 1, fp);
+        }
+        unzCloseCurrentFile(zip);
+
+        float index1 = i + 1;
+        int percent = (index1 / entryamount) * 100;
+        progress_bar(percent, 15);
+
+        free(filename);
+        unzGoToNextFile(zip);
+    }
+    
+    unzClose(zip);
+    
+    printf("\x1b[17;2H(3/3) Installation complete.");
+    printf("\x1b[27;42H     Press any button to continue.");
+    
+    while(true) {
+        WPAD_ScanPads();
+        if (WPAD_ButtonsDown(0)) break;
+    }
+
+    free(title);
+    free(hostname);
+    free(fullurl);
+}
+
+void app_info(json_t* config, const char* hostname, json_t* app) {
+    int zero0 = 0;
+    int zero1 = 0;
+    
+    const char* name = json_string_value(json_object_get(app, "name"));
+    const char* version = json_string_value(json_object_get(app, "version"));
+    const char* authors = json_string_value(json_object_get(app, "author"));
+    time_t release_ts = json_integer_value(json_object_get(app, "release_date"));
+
+    char timestring[12];
+    strftime(timestring, 12, "%d %b %Y", gmtime(&release_ts));
+
+    const char* description = json_string_value(json_object_get(json_object_get(app, "description"), "long"));
+
+    char* title = malloc(strlen(name) + 1);
+    sprintf(title, "%s", name);
+
+    while(true) {
+        clear_screen();
+        print_topbar(title);
+
+        printf("\n");
+        printf(" App name: %s\n", name);
+        printf(" App version: %s\n", version);
+        printf(" Created by %s\n", authors);
+        printf(" Released on %s\n", timestring);
+        printf("\n");
+        printf("%s\n", description);
+        printf("\n");
+
+        printf("\n");
+
+        print_bottombar(1, 0, 24, "A to download, B for back, HOME to exit");
+
+        int ret = process_inputs(0, &zero0, &zero1);
+        if (ret == 2) break;
+        else if (ret == -1) {
+            clear_screen();
+            printf("Exiting...\n");
+            exit(0);
+        }
+        else if (ret == 1) {
+            download_app(name, hostname, app);
+        }
+    }
+
+    free(title);
 }
 
 void surf_category(json_t* config, const char* hostname, const char* name, json_t* category) {
-    json_error_t error;
-
     const char* categoryname = json_string_value(json_object_get(category, "display_name"));
     const char* catslug = json_string_value(json_object_get(category, "name"));
 
-    char* directory = malloc(strlen(REPO_DIR) + 1 + 2 + strlen(hostname) + 1 + strlen(catslug) + 1);
-    sprintf(directory, REPO_DIR "/D_%s/%s", hostname, catslug);
+    json_t* repos = json_object_get(config, "repos");
+    json_t* repo = json_object_get(repos, hostname);
+    json_t* contents = json_object_get(repo, "contents");
 
-    char* jsonname = malloc(strlen(hostname) + 1 + strlen(catslug) + 1 + 2);
-    sprintf(jsonname, "%s+%s", hostname, catslug);
-    for (int i = 0; i < strlen(jsonname); i++) {
-        if (jsonname[i] == '.') jsonname[i] = '_';
-    }
+    json_t* apps = json_object_get(contents, catslug);
+    int appsamount = json_array_size(apps);
     
-    char* jsonname_arr = malloc(strlen(jsonname) + 3);
-    sprintf(jsonname_arr, "D_%s", jsonname);
-
-    json_t* widetemp = json_object_get(config, "temp");
-    json_t* temp = json_object_get(widetemp, jsonname);
-
-    int appsamount = 0;
-    if (!temp) {
-        json_object_set(widetemp, jsonname, json_object());
-        temp = json_object_get(widetemp, jsonname);
-        json_object_set(widetemp, jsonname_arr, json_array());
-        json_t* temptemp_arr = json_object_get(widetemp, jsonname_arr);
-
-        DIR* dir = opendir(directory);
-        if (dir == NULL) {
-            printf("Could not open %s.\n", directory);
-            free(directory);
-            free(jsonname);
-            free(jsonname_arr);
-            home_exit(true);
-        }
-        struct dirent* item;
-
-        while ((item = readdir(dir)) != NULL) {
-            if (strcmp(item->d_name, ".") == 0 || strcmp(item->d_name, "..") == 0) continue;
-            int itemlen = strlen(directory) + 1 + strlen(item->d_name);
-            char* itempath = malloc(itemlen + 1);
-            sprintf(itempath, "%s/%s", directory, item->d_name);
-
-            json_t* app = json_load_file(itempath, 0, &error);
-            if (!app) {
-                free(itempath);
-                free(directory);
-                free(jsonname);
-                free(jsonname_arr);
-                home_exit(true);
-            }
-
-            const char* appname = json_string_value(json_object_get(app, "name"));
-            json_object_set(temp, appname, app);
-            json_array_append(temptemp_arr, json_string(appname));
-
-            appsamount++;
-            free(itempath);
-        }
-
-        closedir(dir);
-    }
-    else {
-        appsamount = json_array_size(json_object_get(widetemp, jsonname_arr));
-    }
-    json_t* temp_arr = json_object_get(widetemp, jsonname_arr);
-
     char* title = malloc(8 + strlen(name) + 3 + strlen(categoryname) + 1);
     sprintf(title, "Surfing %s > %s", name, categoryname);
 
@@ -201,54 +407,38 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
         print_topbar(title);
 
         int printable = MIN(25, appsamount);
-        for (int i = 0; i < (offset + printable); i++) {
-            json_t* item = json_array_get(temp_arr, i);
-            if (i < offset) continue;
-            i -= offset;
+        for (int i = offset; i < (offset + printable); i++) {
+            json_t* app = json_array_get(apps, i);
+            
             print_cursor(i, index);
-            printf("%s\n", json_string_value(item));
-            i += offset;
+            printf("%s\n", json_string_value(json_object_get(app, "name")));
         }
 
         print_bottombar(appsamount, offset, printable - 1, "A to engage, B for back, HOME to exit");
         int ret = process_inputs(appsamount, &offset, &index);
         if (ret == 2) break;
         else if (ret == -1) {
-            free(title);
-            free(directory);
-            free(jsonname);
             clear_screen();
             printf("Exiting...\n");
             exit(0);
         }
         else if (ret == 1) {
-            app_info(config, json_object_get(temp, json_string_value(json_array_get(temp_arr, index))));
+            app_info(config, hostname, json_array_get(apps, index));
         }
     }
 
     free(title);
-    free(directory);
-    free(jsonname);
-    free(jsonname_arr);
 }
 
 void surf_repository(json_t* config, const char* hostname) {
-    json_error_t error;
+    json_t* repos = json_object_get(config, "repos");
+    json_t* repo = json_object_get(repos, hostname);
+    json_t* information = json_object_get(repo, "information");
 
-    char* file = malloc(strlen(REPO_DIR) + 1 + 2 + strlen(hostname) + 5 + 1); // plus slash plus I_ plus .json plus nul
-    sprintf(file, "%s/I_%s.json", REPO_DIR, hostname);
-
-    json_t* repo = json_load_file(file, 0, &error);
-    if (!repo) {
-        printf("Failed reading JSON %s.\n", file);
-        free(file);
-        home_exit(true);
-    }
-
-    json_t* categories = json_object_get(repo, "available_categories");
+    json_t* categories = json_object_get(information, "available_categories");
     int arraysize = json_array_size(categories);
 
-    const char* name = json_string_value(json_object_get(repo, "name"));
+    const char* name = json_string_value(json_object_get(information, "name"));
 
     char* title = malloc(strlen(name) + 1 + 8);
     sprintf(title, "Surfing %s", name);
@@ -271,8 +461,6 @@ void surf_repository(json_t* config, const char* hostname) {
         int ret = process_inputs(arraysize, &offset, &index);
         if (ret == 2) break;
         else if (ret == -1) {
-            free(file);
-            free(title);
             clear_screen();
             printf("Exiting...\n");
             exit(0);
@@ -281,24 +469,14 @@ void surf_repository(json_t* config, const char* hostname) {
             surf_category(config, hostname, name, json_array_get(categories, index));
         }
     }
-
-    free(file);
     free(title);
 }
 
 void start_tui(json_t* config) {
-    json_error_t error;
-    
-    DIR* repos = opendir(REPO_DIR);
-    if (repos == NULL) {
-        json_decref(config);
-        printf("Could not open " REPO_DIR ".\n");
-        home_exit(1);
-    }
-    struct dirent* item;
-
     json_t* repositories = json_object_get(config, "repositories");
     int reposamount = json_array_size(repositories);
+    json_t* repos = json_object_get(config, "repos");
+
     int index = 0;
     int offset = 0;
     for (int i = 0; true; i++) {
@@ -306,36 +484,19 @@ void start_tui(json_t* config) {
             clear_screen();
             print_topbar("Pick a repository");
     
-            rewinddir(repos);
-        
-            int file = -1;
-            int skipped = offset;
-            while ((item = readdir(repos)) != NULL) {
-                if (strcmp(item->d_name, ".") == 0 || strcmp(item->d_name, "..") == 0) continue;
-                if (item->d_name[0] == 'D') continue;
-                if (skipped > 0) {
-                    skipped--;
-                    continue;
-                }
-                file++;
-                if (file >= 25) break;
+            int printable = MIN(25, reposamount);
+            for (int j = offset; j < (offset + printable); j++) {
+                json_t* repo = json_object_get(repos, json_string_value(json_array_get(repositories, j)));
+                json_t* information = json_object_get(repo, "information");
 
-                char* filepath = malloc(strlen(REPO_DIR) + 1 + strlen(item->d_name) + 1); // plus slash plus nul
-                sprintf(filepath, "%s/%s", REPO_DIR, item->d_name);
-            
-                json_t* repo = json_load_file(filepath, 0, &error);
-                const char* provider = json_string_value(json_object_get(repo, "provider"));
-                const char* name = json_string_value(json_object_get(repo, "name"));
+                const char* provider = json_string_value(json_object_get(information, "provider"));
+                const char* name = json_string_value(json_object_get(information, "name"));
 
-                print_cursor(file, index);
+                print_cursor(j, index);
                 printf("%s: %s\n", provider, name);
-
-                json_decref(repo);
-                free(filepath);
             }
 
-
-            print_bottombar(reposamount, offset, file, "A to engage, 1 for settings, HOME to exit");
+            print_bottombar(reposamount, offset, printable - 1, "A to engage, 1 for settings, HOME to exit");
         }
         int ret = (i == 0 && reposamount == 1) ? 1 : process_inputs(reposamount, &offset, &index);
 
@@ -350,6 +511,4 @@ void start_tui(json_t* config) {
             debug_npause();
         }
     }
-
-    closedir(repos);
 }
