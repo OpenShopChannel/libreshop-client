@@ -9,14 +9,16 @@
 // needed for MIN
 #include <sys/param.h>
 
-#include <sandia.h>
 #include <jansson.h>
+#include <yuarel.h>
+#include <zip.h>
+
+#include <winyl/winyl.h>
+#include <winyl/request.h>
 
 #include "debug.h"
 #include "config.h"
 #include "main.h"
-
-#include "minizip-wii/unzip.h"
 
 void clear_screen() {
     printf("\x1b[2J");
@@ -145,7 +147,7 @@ void progress_bar(int percent, int line) {
     printf("%d", percent);
 }
 
-void download_app(const char* appname, const char* _hostname, json_t* app) {
+void download_app(const char* appname, const char* _hostname, json_t* app, char* user_agent) {
     clear_screen();
 
     json_t* urls = json_object_get(app, "url");
@@ -170,30 +172,19 @@ void download_app(const char* appname, const char* _hostname, json_t* app) {
     printf("\x1b[27;1H                ");
 
     char* fullurl = strdup(json_string_value(json_object_get(urls, "zip")));
-    int urlcount = 0;
-    int fullurllen = strlen(fullurl);
-    for (int i = 0; i < strlen(fullurl); i++) {
-            if (fullurl[i] == '/') {
-            urlcount++;
-            if (urlcount < 3) continue;
-            for (int j = i; j < fullurllen; j++) {
-                fullurl[j - i] = fullurl[j];
-            }
-            fullurl[fullurllen - i] = '\0';
-            break;
-        }
-    }
+    struct yuarel url_info;
+    yuarel_parse(&url_info, fullurl);
 
-    sandia s_dl = sandia_create(hostname, 80);
-    sandia_add_header(&s_dl, "User-Agent", USERAGENT);
-    sandia_get_request(&s_dl, fullurl, true, false);
+    winyl w_dl = winyl_open(url_info.host, url_info.port == 0 ? 80 : url_info.port);
+    winyl_response w_dl_res = winyl_request(&w_dl, url_info.path, WINYL_REQUEST_SLASH | WINYL_REQUEST_GET_SOCKET);
+    free(fullurl);
 
-    FILE* fp = fopen(APPS_DIR "/temp.zip", "w");
+    FILE* fp = fopen(APPS_DIR "/temp.zip", "w+");
     char buf[512];
     int received = 0;
     int current = 0;
     float total = json_integer_value(json_object_get(sizes, "zip_compressed")) / 100;
-    while ((received = net_recv(s_dl._sandia_socket._fd, buf, 512, 0)) > 0) {
+    while ((received = net_recv(w_dl_res.socket, buf, 512, 0)) > 0) {
         current += received;
         int percent = current / total;
         
@@ -201,7 +192,10 @@ void download_app(const char* appname, const char* _hostname, json_t* app) {
 
         fwrite(buf, 1, received, fp);
     }
-    fclose(fp);
+    fseek(fp, 0, SEEK_SET);
+
+    winyl_response_close(&w_dl_res);
+    winyl_close(&w_dl);
 
     /*
     printf("\x1b[1;0H");
@@ -218,112 +212,89 @@ void download_app(const char* appname, const char* _hostname, json_t* app) {
         else if (i == 4) printf(BLNK);
         else if (i == 8) printf("%s", PGEX);
     }
+    
+    zip_error_t error;
+    zip_t* zip = zip_open_from_source(zip_source_filep_create(fp, 0, received, &error), 0, &error);
 
-    unzFile* zip = unzOpen(APPS_DIR "/temp.zip");
-    unz_global_info info;
-    unzGetGlobalInfo(zip, &info);
-
-    int entryamount = info.number_entry;
+    zip_file_t* file;
+    zip_stat_t stat;
+    int entryamount = zip_get_num_entries(zip, 0);
     for (int i = 0; i < entryamount; i++) {
-        char dir[256];
-        unz_file_info info;
-        unzGetCurrentFileInfo(zip, &info, dir, 256, NULL, 0, NULL, 0);
+        zip_stat_index(zip, i, 0, &stat);
 
         int slashes = 0;
-        int dirlen = strlen(dir);
-        for (int j = 0; j < dirlen; j++) {
-            if (dir[j] == '/') slashes++;
+        for (int j = 0; stat.name[j] != '\0'; j++) {
+            if (stat.name[j] == '/') slashes++;
         }
+
+        char* name = strdup(stat.name);
+        name[0] = '/';
+
         int slashes2 = 0;
-        char backup = dir[0];
-        char backup2 = dir[0];
-        if (slashes != 0) {
-            for (int j = 0; j < dirlen; j++) {
-                if (dir[j] == '/') {
-                    char* path = malloc(j + 2);
+        DIR* check;
+        for (int j = 0; stat.name[j] != '\0'; j++) {
+            if (stat.name[j] == '/') {
+                slashes2++;
+                if (slashes == slashes2) {
                     for (int k = 0; k <= j; k++) {
-                        path[k] = k == 0 ? '/' : dir[k - 1];
-                    }
-                    path[j + 1] = '\0';
-
-                    printf("\nchecking %s\n", path);
-
-                    DIR* check = opendir(path);
-                    if (check != NULL) closedir(check);
-                    else {
-                        if (mkdir(path, 0660) != 0) {
-                            printf("Failed creating %s.\n", path);
-                            home_exit(true);
+                        name[k + 1] = stat.name[k];
+                        if (stat.name[k] == '/') {
+                            name[k + 1] = '\0';
+                            
+                            check = opendir(name);
+                            if (!check) {
+                                if (mkdir(name, 0600) != 0) {
+                                    printf("\ncreating directory %s failed - home to exit\n", name);
+                                    home_exit(true);
+                                }
+                            }
+                            else closedir(check);
+                            
+                            name[k + 1] = '/';
                         }
-                    }
-
-                    free(path);
-
-                    slashes2++;
-                    if (slashes == slashes2) {
-                        for (int k = j; k > 0; k--) {
-                            dir[k] = dir[k - 1];
-                        }
-                        dir[0] = '/';
-                    
-                        slashes = j + 1;
-                        backup = dir[slashes];
-                        dir[slashes] = '/';
-                    
-                        slashes2 = j + 2;
-                        backup2 = dir[slashes2];
-                        dir[slashes2] = '\0';
-                    
-                        break;
                     }
                 }
             }
         }
 
-        dir[slashes] = backup;
-        dir[slashes2] = backup2;
-        
-        char* filename = malloc(dirlen + 2);
-        strcpy(filename, dir);
-        filename[dirlen] = '-';
-        filename[dirlen + 1] = '\0';
-        for (int j = dirlen; j >= slashes2; j--) {
-            filename[j] = filename[j - 1];
-        }
-        filename[slashes] = '/';
+        free(name);
+
+        char* filename = malloc(strlen(stat.name) + 2);
+        sprintf(filename, "/%s", stat.name);
 
         printf("\x1b[12;0H" BLNP "\x1b[3C%%\x1b[%dD (%d/%d) Extracting file %s", 3 + strlen(BLNP), i + 1, entryamount, filename);
 
         FILE* fp = fopen(filename, "wb");
         if (fp == NULL) {
-            printf("Cannot open %s.\n", filename);
+            printf("\nCannot open %s.\n", filename);
             home_exit(true);
         }
-        
-        unzOpenCurrentFile(zip);
+
         int bufsize = 1024;
         char buf[bufsize];
-        int fine = 0;
-        float total = info.uncompressed_size;
-        int received = 0;
-        while ((fine = unzReadCurrentFile(zip, buf, bufsize)) > 0) {
-            received += fine;
-            int percent = (received / total) * 100;
+        
+        current = 0;
+        float total = stat.size;
+        
+        file = zip_fopen_index(zip, i, 0);
+        while ((received = zip_fread(file, buf, bufsize)) > 0) {
+            current += received;
+
+            int percent = (current / total) * 100;
             progress_bar(percent, 10);
-            fwrite(buf, fine, 1, fp);
+            fwrite(buf, received, 1, fp);
         }
-        unzCloseCurrentFile(zip);
+        zip_fclose(file);
 
         float index1 = i + 1;
         int percent = (index1 / entryamount) * 100;
         progress_bar(percent, 15);
 
         free(filename);
-        unzGoToNextFile(zip);
     }
     
-    unzClose(zip);
-    
+    zip_close(zip);
+
     printf("\x1b[17;2H(3/3) Installation complete.");
     printf("\x1b[27;42H     Press any button to continue.");
     
@@ -334,10 +305,9 @@ void download_app(const char* appname, const char* _hostname, json_t* app) {
 
     free(title);
     free(hostname);
-    free(fullurl);
 }
 
-void app_info(json_t* config, const char* hostname, json_t* app) {
+void app_info(json_t* config, const char* hostname, json_t* app, char* user_agent) {
     int zero0 = 0;
     int zero1 = 0;
     
@@ -379,14 +349,14 @@ void app_info(json_t* config, const char* hostname, json_t* app) {
             exit(0);
         }
         else if (ret == 1) {
-            download_app(name, hostname, app);
+            download_app(name, hostname, app, user_agent);
         }
     }
 
     free(title);
 }
 
-void surf_category(json_t* config, const char* hostname, const char* name, json_t* category) {
+void surf_category(json_t* config, const char* hostname, const char* name, json_t* category, char* user_agent) {
     const char* categoryname = json_string_value(json_object_get(category, "display_name"));
     const char* catslug = json_string_value(json_object_get(category, "name"));
 
@@ -423,14 +393,14 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
             exit(0);
         }
         else if (ret == 1) {
-            app_info(config, hostname, json_array_get(apps, index));
+            app_info(config, hostname, json_array_get(apps, index), user_agent);
         }
     }
 
     free(title);
 }
 
-void surf_repository(json_t* config, const char* hostname) {
+void surf_repository(json_t* config, const char* hostname, char* user_agent) {
     json_t* repos = json_object_get(config, "repos");
     json_t* repo = json_object_get(repos, hostname);
     json_t* information = json_object_get(repo, "information");
@@ -466,13 +436,13 @@ void surf_repository(json_t* config, const char* hostname) {
             exit(0);
         }
         else if (ret == 1) {
-            surf_category(config, hostname, name, json_array_get(categories, index));
+            surf_category(config, hostname, name, json_array_get(categories, index), user_agent);
         }
     }
     free(title);
 }
 
-void start_tui(json_t* config) {
+void start_tui(json_t* config, char* user_agent) {
     json_t* repositories = json_object_get(config, "repositories");
     int reposamount = json_array_size(repositories);
     json_t* repos = json_object_get(config, "repos");
@@ -503,7 +473,7 @@ void start_tui(json_t* config) {
         if (ret == -1) break;
         else if (ret == 1) {
             const char* hostname = json_string_value(json_array_get(repositories, index));
-            surf_repository(config, hostname);
+            surf_repository(config, hostname, user_agent);
         }
         else if (ret == 3) {
             clear_screen();

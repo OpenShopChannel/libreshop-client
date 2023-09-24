@@ -17,7 +17,7 @@ include $(DEVKITPPC)/wii_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	source source/libs source/minizip-wii
+SOURCES		:=	source
 DATA		:=	data
 INCLUDES	:=
 
@@ -33,7 +33,7 @@ LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS	:=	-lwiiuse -lbte -lfat -logc -lm -lz -lsandia -ljansson
+LIBS	:=	-lwiiuse -lbte -lfat -logc -lm -lzip -lz -lbz2 -ljansson -lwinyl -lyuarel
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

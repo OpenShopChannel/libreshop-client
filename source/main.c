@@ -7,12 +7,15 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <dirent.h>
+#include <math.h>
 
 #include <sandia.h>
 #include <jansson.h>
 
-#include "libs/fshelp.h"
-#include "libs/nethelp.h"
+#include <winyl/winyl.h>
+#include <winyl/request.h>
+#include <winyl/version.h>
+#include <winyl/header.h>
 
 #include "debug.h"
 #include "config.h"
@@ -175,18 +178,29 @@ int main(int argc, char **argv) {
         printf("\n");
         logprint(0, "Loading repositories.\n");
 
+        char* winagent = malloc(10 + winyl_version_len() + 1 + 10 + strlen(VERSION));
+        char* winagentver = malloc(winyl_version_len() + 1);
+        winyl_version(winagentver);
+        sprintf(winagent, "libwinyl/%s LibreShop/" VERSION, winagentver);
+        free(winagentver);
+
         json_t* repositories = json_object_get(config, "repositories");
         for (int i = 0; i < json_array_size(repositories); i++) {
             char* hostname = strdup(json_string_value(json_array_get(repositories, i)));
             FILE* temp = fopen(APPS_DIR "/temp.json", "w+");
+            winyl host = winyl_open(hostname, 80);
+            winyl_add_header(&host, "User-Agent", winagent);
             
-            sandia s_info = sandia_create(hostname, 80);
-            sandia_add_header(&s_info, "User-Agent", USERAGENT);
-            sandia_get_request(&s_info, "/api/v3/information", true, false);
+            winyl_response w_info = winyl_request(&host, "/api/v3/information", WINYL_REQUEST_GET_SOCKET);
 
-            sandia_ext_write_to_file(&s_info, temp);
+            int recv;
+            char buf[256];
+            while ((recv = net_recv(w_info.socket, buf, 256, 0)) > 0) {
+                fwrite(buf, recv, 1, temp);
+            }
+            net_close(w_info.socket);
+            winyl_response_close(&w_info);
             fseek(temp, 0, SEEK_SET);
-            sandia_close(&s_info);
 
             json_error_t error;
             json_t* information = json_loadf(temp, 0, &error);
@@ -196,15 +210,18 @@ int main(int argc, char **argv) {
                 fclose(temp);
                 home_exit(true);
             }
-            
-            sandia s_cont = sandia_create(hostname, 80);
-            sandia_add_header(&s_cont, "User-Agent", USERAGENT);
-            sandia_get_request(&s_cont, "/api/v3/contents", true, false);
 
+            winyl_response w_cont = winyl_request(&host, "/api/v3/contents", WINYL_REQUEST_GET_SOCKET);
+            
             fseek(temp, 0, SEEK_SET);
-            sandia_ext_write_to_file(&s_cont, temp);
+            while ((recv = net_recv(w_cont.socket, buf, 256, 0)) > 0) {
+                fwrite(buf, recv, 1, temp);
+            }
+            net_close(w_cont.socket);
+            winyl_response_close(&w_cont);
             fseek(temp, 0, SEEK_SET);
-            sandia_close(&s_cont);
+
+            winyl_close(&host);
 
             json_t* contents = json_loadf(temp, JSON_DISABLE_EOF_CHECK, &error);
             if (!contents) {
@@ -213,6 +230,7 @@ int main(int argc, char **argv) {
                 fclose(temp);
                 home_exit(true);
             }
+            fclose(temp);
 
             json_object_set(repos, hostname, json_object());
             json_t* repo = json_object_get(repos, hostname);
@@ -239,146 +257,12 @@ int main(int argc, char **argv) {
             
             json_decref(information);
             json_decref(contents);
-
-            /*
-            int appsamount = json_integer_value(json_object_get(information, "available_apps_count"));
-
-            json_t* name = json_object_get(information, "name");
-            printf("\n");
-            logprint(0, "Syncing repository ");
-            printf("%s\n", json_string_value(name));
-            logprint(0, "-------------------");
-            for (int i = 0; i < json_string_length(name); i++) {
-                printf("-");
-            }
-            printf("\n");
-
-            json_t* description = json_object_get(information, "description");
-            logprint(0, "Description: ");
-            printf("%s\n", json_string_value(description));
-            
-            json_t* provider = json_object_get(information, "provider");
-            logprint(0, "Provided by ");
-            printf("%s\n", json_string_value(provider));
-
-            char* directory = malloc(strlen(REPO_DIR) + 1 + strlen(hostname) + 1 + 5 + 2); // plus slash plus nul plus .json
-            sprintf(directory, "%s/D_%s", REPO_DIR, hostname);
-            if (mkdir(directory, 0660) != 0) {
-                printf("Cannot create directory %s.\n", directory);
-                free(directory);
-                json_decref(information);
-                fclose(temp);
-                free(hostname);
-                home_exit(true);
-            }
-            
-            int directoryLen = strlen(directory);
-            directory[directoryLen] = '.';
-            directory[directoryLen + 1] = 'j';
-            directory[directoryLen + 2] = 's';
-            directory[directoryLen + 3] = 'o';
-            directory[directoryLen + 4] = 'n';
-            directory[directoryLen + 5] = '\0';
-            
-            int variationIndex = strlen(REPO_DIR) + 1;
-            directory[variationIndex] = 'I';
-
-            if (json_dump_file(information, directory, 0) != 0) {
-                printf("Cannot write to file %s.\n", directory);
-                free(directory);
-                json_decref(information);
-                fclose(temp);
-                free(hostname);
-                home_exit(true);
-            }
-
-            directory[variationIndex] = 'D';
-            directory[directoryLen] = '\0';
-
-            json_t* categories = json_object_get(information, "available_categories");
-            int categoryamount = json_array_size(categories);
-            for (int j = 0; j < categoryamount; j++) {
-                json_t* category = json_array_get(categories, j);
-                const char* categoryname = json_string_value(json_object_get(category, "name"));
-
-                char* categorynamepath = malloc(strlen(directory) + 1 + strlen(categoryname) + 1); // plus slash  plus nul
-                sprintf(categorynamepath, "%s/%s", directory, categoryname);
-
-                /-*
-                if (json_dump_file(category, categorynamepath, 0) != 0) {
-                    printf("Failed writing %s.\n", categorynamepath);
-                    free(categorynamepath);
-                    free(directory);
-                    free(hostname);
-                    json_decref(information);
-                    fclose(temp);
-                    home_exit(true);
-                }
-                
-                // place nul instead of dot in file extension,
-                // turning it into a folder path (with no trailing /)
-                categorynamepath[strlen(categorynamepath) - 5] = '\0';
-                *-/
-
-                if (fseek(temp, 1, SEEK_CUR) == 0) {
-                    fseek(temp, -1, SEEK_CUR);
-                    fprintf(temp, "\n");
-                }
-
-                if (mkdir(categorynamepath, 0660) != 0) {
-                    printf("Failed creating directory %s.\n", categorynamepath);
-                    free(categorynamepath);
-                    free(directory);
-                    free(hostname);
-                    json_decref(information);
-                    fclose(temp);
-                    home_exit(true);
-                }
-
-                free(categorynamepath);
-            }
-            logprint(0, "Processed ");
-            printf("%d categor", categoryamount);
-            if (categoryamount == 1) printf("y\n");
-            else printf("ies\n");
-            
-            json_decref(information);
-
-
-            for (int j = 0; j < appsamount; j++) {
-                json_t* app = json_array_get(contents, j);
-                const char* slug = json_string_value(json_object_get(app, "slug"));
-                const char* categoryname = json_string_value(json_object_get(app, "category"));
-                char* slugloc = malloc(strlen(directory) + 1 + strlen(categoryname) + 1 + strlen(slug) + 6); // plus slash plus slash plus .json plus nul
-                sprintf(slugloc, "%s/%s/%s.json", directory, categoryname, slug);
-
-                if (json_dump_file(app, slugloc, 0) != 0) {
-                    printf("Failed writing %s.\n", slugloc);
-                    json_decref(contents);
-                    free(slugloc);
-                    free(directory);
-                    free(hostname);
-                    fclose(temp);
-                    home_exit(true);
-                }
-
-                free(slugloc);
-            }
-
-            logprint(0, "Processed ");
-            printf("%d app", appsamount);
-            if (appsamount != 1) printf("s");
-            printf("\n");
-
-            json_decref(contents);
-            free(directory);
-            fclose(temp);
             free(hostname);
-            */
         }
 
-        start_tui(config);
+        start_tui(config, winagent);
         
+        free(winagent);
         clear_screen();
         printf("Exiting...\n");
 

@@ -2,7 +2,6 @@
 #define CONFIG_H
 
 #define VERSION "0.0dev"
-#define USERAGENT "LibreShop/" VERSION
 
 #define APPS_DIR "/apps/libreshop"
 
