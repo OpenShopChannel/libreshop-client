@@ -25,23 +25,24 @@ void clear_screen() {
 }
 
 void print_topbar(char* msg) {
-    int spacesneeded = 77 - 11 - strlen(VERSION) - 4 - strlen(msg); // i have no idea how i landed on this but it works
+    int spacesneeded = 77 - OVERSCAN_X * 2 -     11    -   2  - strlen(msg) - strlen(VERSION);
+    /*                                      LibreShop_v spaces */
     char buf[spacesneeded + 1];
     for (int i = 0; i < spacesneeded; i++) {
         buf[i] = ' ';
     }
     buf[spacesneeded] = '\0';
-    printf(" %s %s LibreShop v" VERSION "\n" LINE, msg, buf);
+    printf(OVERSCAN_Y_LINES OVERSCAN_X_SPACES "%s %s LibreShop v" VERSION "\n" LINE, msg, buf);
 }
 
 // these pointer stuff are so confusing. damn im a javascript dev do yall think i need this in my life
-int process_inputs(int limit, int* offset, int* index) {
-    int canDisplayAmount = MIN(25, limit - *(int*)offset);
+int process_inputs(int limit, int* offset, int* index, int noscroll) {
+    int canDisplayAmount = MIN(25 - OVERSCAN_Y_TIMES_2, limit - *(int*)offset);
     int maxOffset = MAX(0, limit - canDisplayAmount);
     int endOfIndex = *(int*)offset + canDisplayAmount;
 
-    printf("\x1b[27;20H");
-    printf("   l %d o %d i %d cDA %d mO %d eOI %d   ", limit, *(int*)offset, *(int*)index, canDisplayAmount, maxOffset, endOfIndex);
+    //printf("\x1b[27;20H");
+    //printf("   l %d o %d i %d cDA %d mO %d eOI %d   ", limit, *(int*)offset, *(int*)index, canDisplayAmount, maxOffset, endOfIndex);
 
     int ret = 0;
     while(true) {
@@ -50,22 +51,24 @@ int process_inputs(int limit, int* offset, int* index) {
         u32 pressed = WPAD_ButtonsDown(0);
         if (pressed & WPAD_BUTTON_DOWN) {
             (*index)++;
+            if (noscroll) (*index) = endOfIndex;
             if (*(int*)index >= endOfIndex) {
                 (*offset)++;
                 if (*(int*)offset > maxOffset) (*offset)--;
             }
             if (*(int*)index >= limit) (*index)--;
+            ret = 4;
             break;
         }
         else if (pressed & WPAD_BUTTON_UP) {
             (*index)--;
-            if (*(int*)index < 0) {
-                (*index)++;
-            }
+            if (noscroll) (*index) = *(int*)offset - 1;
             if (*(int*)index < *(int*)offset) {
                 (*offset)--;
                 if (*(int*)offset < 0) (*offset)++;
             }
+            if (*(int*)index < 0) (*index)++;
+            ret = 5;
             break;
         }
         else if (pressed & WPAD_BUTTON_HOME) {
@@ -90,41 +93,36 @@ int process_inputs(int limit, int* offset, int* index) {
 }
 
 void print_cursor(int currentfile, int cursor) {
-    if (currentfile == cursor) {
-        printf(" > ");
-    }
-    else printf("   ");
+    char cur[OVERSCAN_X + 1];
+    strncpy(cur, OVERSCAN_X_SPACES, OVERSCAN_X + 1);
+    if (currentfile == cursor) cur[OVERSCAN_X - 2] = '>';
+    printf("%s", cur);
 }
 
-int intlen(int n) {
-    int place = 1;
-    while (n > 9) {
-        n /= 10;
-        place++;
-    }
-    return place;
-}
-
-void print_bottombar(int limit, int offset, int file, char* bottom) {
-    for (int i = file; i < 24; i++) {
+void print_bottombar(int limit, int offset, int file, char* bottom, int noscroll) {
+    for (int i = file; i < (24 - OVERSCAN_Y_TIMES_2); i++) {
         printf("\n");
     }
     int start = offset + 1;
-    int end = offset + MIN(25, limit);
+    int end = offset + MIN(25 - OVERSCAN_Y_TIMES_2, limit);
    
-    int linelen = 9 + intlen(start) + 1 + intlen(end) + 4 + intlen(limit) + 1;
+    int linelen =    8   + WINYL_INTLEN(start) + 1 + WINYL_INTLEN(end) + 4  + WINYL_INTLEN(limit) +  1 ;
+    /*            showing                        -                       of                         nul */
+    if (noscroll) linelen = 1;
     char* wholeline = malloc(linelen);
-    sprintf(wholeline, " showing %d-%d of %d", start, end, limit);
+    if (!noscroll) sprintf(wholeline, "showing %d-%d of %d", start, end, limit);
+    else wholeline[0] = '\0';
 
     int bottomlen = strlen(bottom);
-    int spaces = 77 - (linelen - 1) - bottomlen - 1;
+    int spaces = 77 - OVERSCAN_X * 2 - (linelen - 1) - bottomlen;
+
     char buf[spaces + 1];
     buf[spaces] = '\0';
     for (int i = 0; i < spaces; i++) {
         buf[i] = ' ';
     }
 
-    printf(LINE "%s%s%s", wholeline, buf, bottom);
+    printf(LINE OVERSCAN_X_SPACES "%s%s%s\n" OVERSCAN_Y_LINES_MINUS_1, wholeline, buf, bottom);
     
     free(wholeline);
 }
@@ -141,15 +139,13 @@ void progress_bar(int percent, int line) {
     printf("%s", buf);
 
     printf("\x1b[2B\x1b[4D");
-    for (int i = 0; i < (3 - intlen(percent)); i++) {
+    for (int i = 0; i < (3 - WINYL_INTLEN(percent)); i++) {
         printf(" ");
     }
     printf("%d", percent);
 }
 
 void download_app(const char* appname, const char* _hostname, json_t* app, char* user_agent) {
-    clear_screen();
-
     json_t* urls = json_object_get(app, "url");
     json_t* sizes = json_object_get(app, "file_size");
 
@@ -160,16 +156,14 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     clear_screen();
     print_topbar(title);
 
-    for (int i = 0; i < 25; i++) {
+    for (int i = 0; i < (25 - OVERSCAN_Y_TIMES_2); i++) {
         if (i == 11 || i == 13) printf(PGLN);
         else if (i == 12) printf(PGLC);
         else if (i == 14) printf("%s", PGLB);
         else printf("\n");
     }
 
-    print_bottombar(0, 0, 24, "Please wait until the bars finish.");
-    // clean out the "showing 1-0 of 0" text
-    printf("\x1b[27;1H                ");
+    print_bottombar(0, 0, 24, "Please wait until the bars finish.", 1);
 
     char* fullurl = strdup(json_string_value(json_object_get(urls, "zip")));
     struct yuarel url_info;
@@ -308,10 +302,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
 }
 
 void app_info(json_t* config, const char* hostname, json_t* app, char* user_agent) {
-    int zero0 = 0;
-    int zero1 = 0;
-    
-    const char* name = json_string_value(json_object_get(app, "name"));
+    char* name = strdup(json_string_value(json_object_get(app, "name")));
     const char* version = json_string_value(json_object_get(app, "version"));
     const char* authors = json_string_value(json_object_get(app, "author"));
     time_t release_ts = json_integer_value(json_object_get(app, "release_date"));
@@ -319,29 +310,66 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
     char timestring[12];
     strftime(timestring, 12, "%d %b %Y", gmtime(&release_ts));
 
+    FILE* temp = fopen(APPS_DIR "/temp.txt", "w+");
+
+    int i = 77, j, lines = 0;
+    
+    fprintf(temp, OVERSCAN_X_SPACES "App name: %s", name);
+    for (j = ftell(temp); j < i; j++) fputc(' ', temp);
+    lines++, i += 77;
+
+    fprintf(temp, OVERSCAN_X_SPACES "App version: %s", version);
+    for (j = ftell(temp); j < i; j++) fputc(' ', temp);
+    lines++, i += 77;
+
+    fprintf(temp, OVERSCAN_X_SPACES "Created by %s", authors);
+    for (j = ftell(temp); j < i; j++) fputc(' ', temp);
+    lines++, i += 77 * 2;
+    
+    fprintf(temp, OVERSCAN_X_SPACES "Released on %s", timestring);
+    for (j = ftell(temp); j < i; j++) fputc(' ', temp);
+    lines += 2;
+
     const char* description = json_string_value(json_object_get(json_object_get(app, "description"), "long"));
+    int desclen = strlen(description);
+    
+    for (i = 0; i < desclen; j = 0) {
+        fprintf(temp, OVERSCAN_X_SPACES);
 
-    char* title = malloc(strlen(name) + 1);
-    sprintf(title, "%s", name);
+        for (j = i; j < (i + OVERSCAN_X_WRAP_TO) && j < desclen && description[j] != '\n'; j++) {
+            fputc(description[j], temp);
+        }
+        
+        int backupI = i;
+        i = j + (description[j] == '\n');
+        
+        for ((void)j; j < (backupI + OVERSCAN_X_WRAP_TO); j++) {
+            fputc(' ', temp);
+        }
 
+        fprintf(temp, OVERSCAN_X_SPACES);
+        lines++;
+    }
+
+    int index = 0;
+    int offset = 0;
+    char line[78];
+    line[77] = '\0';
     while(true) {
         clear_screen();
-        print_topbar(title);
+        print_topbar(name);
 
-        printf("\n");
-        printf(" App name: %s\n", name);
-        printf(" App version: %s\n", version);
-        printf(" Created by %s\n", authors);
-        printf(" Released on %s\n", timestring);
-        printf("\n");
-        printf("%s\n", description);
-        printf("\n");
+        fseek(temp, offset * 77, SEEK_SET);
 
-        printf("\n");
+        int printable = MIN(25 - OVERSCAN_Y_TIMES_2, lines);
+        for (int k = offset; k < (offset + printable); k++) {
+            fread(line, 77, 1, temp);
+            printf("%s", line);
+        }
 
-        print_bottombar(1, 0, 24, "A to download, B for back, HOME to exit");
+        print_bottombar(lines, offset, printable - 1, "A to download, B for back, HOME to exit", 0);
 
-        int ret = process_inputs(0, &zero0, &zero1);
+        int ret = process_inputs(lines, &offset, &index, 1);
         if (ret == 2) break;
         else if (ret == -1) {
             clear_screen();
@@ -353,7 +381,8 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
         }
     }
 
-    free(title);
+    free(name);
+    fclose(temp);
 }
 
 void surf_category(json_t* config, const char* hostname, const char* name, json_t* category, char* user_agent) {
@@ -376,7 +405,7 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
         clear_screen();
         print_topbar(title);
 
-        int printable = MIN(25, appsamount);
+        int printable = MIN(25 - OVERSCAN_Y_TIMES_2, appsamount);
         for (int i = offset; i < (offset + printable); i++) {
             json_t* app = json_array_get(apps, i);
             
@@ -384,8 +413,8 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
             printf("%s\n", json_string_value(json_object_get(app, "name")));
         }
 
-        print_bottombar(appsamount, offset, printable - 1, "A to engage, B for back, HOME to exit");
-        int ret = process_inputs(appsamount, &offset, &index);
+        print_bottombar(appsamount, offset, printable - 1, "A to engage, B for back, HOME to exit", 0);
+        int ret = process_inputs(appsamount, &offset, &index, 0);
         if (ret == 2) break;
         else if (ret == -1) {
             clear_screen();
@@ -419,7 +448,7 @@ void surf_repository(json_t* config, const char* hostname, char* user_agent) {
         clear_screen();
         print_topbar(title);
 
-        int processed = MIN(25, arraysize);
+        int processed = MIN(25 - OVERSCAN_Y_TIMES_2, arraysize);
         for (int i = offset; i < (offset + processed); i++) {
             json_t* category = json_array_get(categories, i);
 
@@ -427,8 +456,8 @@ void surf_repository(json_t* config, const char* hostname, char* user_agent) {
             printf("%s\n", json_string_value(json_object_get(category, "display_name")));
         }
 
-        print_bottombar(arraysize, offset, processed - 1, "A to engage, B for back, HOME to exit");
-        int ret = process_inputs(arraysize, &offset, &index);
+        print_bottombar(arraysize, offset, processed - 1, "A to engage, B for back, HOME to exit", 0);
+        int ret = process_inputs(arraysize, &offset, &index, 0);
         if (ret == 2) break;
         else if (ret == -1) {
             clear_screen();
@@ -454,7 +483,7 @@ void start_tui(json_t* config, char* user_agent) {
             clear_screen();
             print_topbar("Pick a repository");
     
-            int printable = MIN(25, reposamount);
+            int printable = MIN(25 - OVERSCAN_Y_TIMES_2, reposamount);
             for (int j = offset; j < (offset + printable); j++) {
                 json_t* repo = json_object_get(repos, json_string_value(json_array_get(repositories, j)));
                 json_t* information = json_object_get(repo, "information");
@@ -466,9 +495,9 @@ void start_tui(json_t* config, char* user_agent) {
                 printf("%s: %s\n", provider, name);
             }
 
-            print_bottombar(reposamount, offset, printable - 1, "A to engage, 1 for settings, HOME to exit");
+            print_bottombar(reposamount, offset, printable - 1, "A to engage, 1 for settings, HOME to exit", 0);
         }
-        int ret = (i == 0 && reposamount == 1) ? 1 : process_inputs(reposamount, &offset, &index);
+        int ret = (i == 0 && reposamount == 1) ? 1 : process_inputs(reposamount, &offset, &index, 0);
 
         if (ret == -1) break;
         else if (ret == 1) {

@@ -1,5 +1,5 @@
 all:
-	@sh -c "cd ..; make"
+	@cd .. && $(MAKE) --no-print-directory build
 
 clean:
-	@sh -c "cd ..; make clean"
+	@cd .. && $(MAKE) --no-print-directory clean
