@@ -5,7 +5,6 @@
 
 #define APPS_DIR "/apps/libreshop"
 
-// minimal 2
 #define OVERSCAN_X 3
 #define OVERSCAN_X_SPACES "   "
 
