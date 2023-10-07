@@ -128,14 +128,17 @@ void print_bottombar(int limit, int offset, int file, char* bottom, int noscroll
 }
 
 void progress_bar(int percent, int line) {
-    int bars = floorf(percent * 0.71);
-    printf("\x1b[%d;3H", line);
-    char buf[72];
-    for (int i = 0; i < 71; i++) {
+    float total = OVERSCAN_X_PROGRESS / 100.0f;
+    int bars = percent * total;
+
+    printf("\x1b[%d;%dH", line, OVERSCAN_X + 2);
+
+    char buf[OVERSCAN_X_PROGRESS + 1];
+    for (int i = 0; i < OVERSCAN_X_PROGRESS; i++) {
         if (i < bars) buf[i] = '#';
         else buf[i] = ' ';
     }
-    buf[71] = '\0';
+    buf[OVERSCAN_X_PROGRESS] = '\0';
     printf("%s", buf);
 
     printf("\x1b[2B\x1b[4D");
@@ -156,10 +159,11 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     clear_screen();
     print_topbar(title);
 
+    int center = (25 - OVERSCAN_Y_TIMES_2) / 2;
     for (int i = 0; i < (25 - OVERSCAN_Y_TIMES_2); i++) {
-        if (i == 11 || i == 13) printf(PGLN);
-        else if (i == 12) printf(PGLC);
-        else if (i == 14) printf("%s", PGLB);
+        if (i == (center - 1) || i == (center + 1)) printf("%.*s%s", PGLN);
+        else if (i == center) printf("%.*s%s", PGLC);
+        else if (i == (center + 2)) printf("%.*s%s", PGLB);
         else printf("\n");
     }
 
@@ -191,20 +195,13 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     winyl_response_close(&w_dl_res);
     winyl_close(&w_dl);
 
-    /*
-    printf("\x1b[1;0H");
-    for (int i = 0; i < 25; i++) {
-        printf("%d\n", i);
-    }
-    */
-
     printf("\x1b[9;0H");
     for (int i = 0; i < 9; i++) {
-        if (i == 0 || i == 2 || i == 5 || i == 7) printf(PGLN);
-        else if (i == 1 || i == 6) printf(PGLC);
-        else if (i == 3) printf("%s", PGIN);
+        if (i == 0 || i == 2 || i == 5 || i == 7) printf("%.*s%s", PGLN);
+        else if (i == 1 || i == 6) printf("%.*s%s", PGLC);
+        else if (i == 3) printf("%.*s%s", PGIN);
         else if (i == 4) printf(BLNK);
-        else if (i == 8) printf("%s", PGEX);
+        else if (i == 8) printf("%.*s%s", PGEX);
     }
     
     zip_error_t error;
@@ -213,6 +210,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     zip_file_t* file;
     zip_stat_t stat;
     int entryamount = zip_get_num_entries(zip, 0);
+    int percent = 0;
     for (int i = 0; i < entryamount; i++) {
         zip_stat_index(zip, i, 0, &stat);
 
@@ -256,7 +254,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
         char* filename = malloc(strlen(stat.name) + 2);
         sprintf(filename, "/%s", stat.name);
 
-        printf("\x1b[12;0H" BLNP "\x1b[3C%%\x1b[%dD (%d/%d) Extracting file %s", 3 + strlen(BLNP), i + 1, entryamount, filename);
+        printf("\x1b[12;0H" BLNK "\x1b[1A" OVERSCAN_X_SPACES "  (%d/%d) Extracting file %s\x1b[12;%dH%%", i + 1, entryamount, filename, 77 - OVERSCAN_X - 3);
 
         FILE* fp = fopen(filename, "wb");
         if (fp == NULL) {
@@ -281,7 +279,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
         zip_fclose(file);
 
         float index1 = i + 1;
-        int percent = (index1 / entryamount) * 100;
+        percent = (index1 / entryamount) * 100;
         progress_bar(percent, 15);
 
         free(filename);
@@ -289,9 +287,9 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     
     zip_close(zip);
 
-    printf("\x1b[17;2H(3/3) Installation complete.");
-    printf("\x1b[27;42H     Press any button to continue.");
-    
+    printf("\x1b[17;%dH(3/3) Installation complete.", OVERSCAN_X + 2);
+    printf("\x1b[%d;%dH     Press any button to continue.", 27 - OVERSCAN_Y, 43 - OVERSCAN_X);
+
     while(true) {
         WPAD_ScanPads();
         if (WPAD_ButtonsDown(0)) break;
