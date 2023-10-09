@@ -20,6 +20,8 @@
 #include "config.h"
 #include "main.h"
 
+#include "acknowledgements_json.h"
+
 void clear_screen() {
     printf("\x1b[2J");
 }
@@ -469,6 +471,38 @@ void surf_repository(json_t* config, const char* hostname, char* user_agent) {
     free(title);
 }
 
+void open_settings() {
+    int index = 0;
+    int offset = 0;
+
+    int lines = acknowledgements_json_size / 77;
+    char buf[78];
+    buf[77] = '\0';
+
+    while(true) {
+        clear_screen();
+        print_topbar("Settings");
+
+        int printable = MIN(25 - OVERSCAN_Y_TIMES_2, lines);
+        for (int k = offset; k < (offset + printable); k++) {
+            for (int l = 0; l < 77; l++) {
+                buf[l] = acknowledgements_json[l + (k * 77)];
+            }
+            printf("%s", buf);
+        }
+
+        print_bottombar(lines, offset, printable - 1, "B for back, HOME to exit", 0);
+
+        int ret = process_inputs(lines, &offset, &index, 1);
+        if (ret == 2) break;
+        else if (ret == -1) {
+            clear_screen();
+            printf("Exiting...\n");
+            exit(0);
+        }
+    }
+}
+
 void start_tui(json_t* config, char* user_agent) {
     json_t* repositories = json_object_get(config, "repositories");
     int reposamount = json_array_size(repositories);
@@ -503,9 +537,7 @@ void start_tui(json_t* config, char* user_agent) {
             surf_repository(config, hostname, user_agent);
         }
         else if (ret == 3) {
-            clear_screen();
-            printf("settings here\n");
-            debug_npause();
+            open_settings();
         }
     }
 }

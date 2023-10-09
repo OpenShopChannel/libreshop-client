@@ -1,0 +1,19 @@
+#!/bin/bash
+
+cd "$(dirname "$0")"
+
+read -d "" acknowledgements << EOF
+Hello!!!!!!!!!
+Very epic settings text that was wrapped
+EOF
+
+for i in 1 2 3 4 5; do
+    export "acknowledgements+=
+$(< default_config.json)"
+done
+
+# wrap it for the Wii
+echo -n > acknowledgements.json
+while IFS= read -r p; do
+    printf "%-77s" "${p}" >> acknowledgements.json
+done <<< "${acknowledgements}"
