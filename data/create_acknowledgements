@@ -1,19 +1,29 @@
 #!/bin/bash
 
 cd "$(dirname "$0")"
+export "LINE=============================================================================="
 
-read -d "" acknowledgements << EOF
-Hello!!!!!!!!!
-Very epic settings text that was wrapped
+# ========================================================================= #
+IFS= read -d "" acknowledgements << EOF
+     Hi... The settings aren't implemented yet. Please come back later.
+     (When the software updates, preferably.)
+
+     In the meantime, if you need to change repositories, please modify
+     the config.json file in the /apps/libreshop directory.
+
+     
 EOF
 
-for i in 1 2 3 4 5; do
-    export "acknowledgements+=
-$(< default_config.json)"
-done
+#export "acknowledgements+=
+#
+#appended"
 
 # wrap it for the Wii
 echo -n > acknowledgements.json
+echo "acknowledgements.json"
+echo "+-----------------------------------------------------------------------------+"
 while IFS= read -r p; do
+    printf "|%-77s|\n" "${p}"
     printf "%-77s" "${p}" >> acknowledgements.json
 done <<< "${acknowledgements}"
+echo "+-----------------------------------------------------------------------------+"
