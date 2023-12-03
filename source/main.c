@@ -9,7 +9,6 @@
 #include <dirent.h>
 #include <math.h>
 
-#include <sandia.h>
 #include <jansson.h>
 
 #include <winyl/winyl.h>
