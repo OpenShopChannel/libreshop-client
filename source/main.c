@@ -26,11 +26,11 @@ static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
 
 void printheader() {
-	printf("\x1b[44m");
-	printf("                                                                           \n");
-	printf("     LibreShop v%s                                                     \n", VERSION);
-	printf("                                                                           \n");
-	printf("\x1b[40m\n");
+    printf("\x1b[44m");
+    printf("                                                                           \n");
+    printf("     LibreShop v%s%.*s\n", VERSION, 59 - strlen(VERSION), "                                                           ");
+    printf("                                                                           \n");
+    printf("\x1b[40m\n");
 }
 
 void logprint(int type, char *message) {
@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
 
 	printheader();
 	logprint(0, "Welcome to LibreShop!\n");
-#ifdef DEBUG_H
+#ifdef DEBUG
 	logprint(2, "Warning! You are running a DEBUG build.\n");
 #endif
 

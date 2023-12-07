@@ -11,7 +11,8 @@ IFS= read -d "" acknowledgements << EOF
      In the meantime, if you need to change repositories, please modify
      the config.json file in the /apps/libreshop directory.
 
-     
+     And, if you find any bugs / unintended behaviour, please report it
+     in our Discord server. (discord.gg/MaSFgbqynK)
 EOF
 
 #export "acknowledgements+=
