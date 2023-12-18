@@ -1,7 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#define VERSION "0.1"
+#define VERSION "0.2dev"
 
 #define APPS_DIR "/apps/libreshop"
 

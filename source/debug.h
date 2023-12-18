@@ -1,7 +1,7 @@
 #ifndef DEBUG
 
 // Uncomment if this is a development build
-//#define DEBUG
+#define DEBUG
 
 // Useful for repo stuff
 //#define ALWAYS_DEFAULT_CONFIG
