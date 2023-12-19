@@ -9,6 +9,9 @@
 #include <dirent.h>
 #include <math.h>
 
+#include <aesndlib.h>
+#include <gcmodplay.h>
+
 #include <jansson.h>
 
 #include <winyl/winyl.h>
@@ -73,6 +76,8 @@ int main(int argc, char **argv) {
 	VIDEO_Init();
 
 	WPAD_Init();
+
+        AESND_Init();
 
 	rmode = VIDEO_GetPreferredMode(NULL);
 
@@ -259,8 +264,32 @@ int main(int argc, char **argv) {
             free(hostname);
         }
 
-        start_tui(config, winagent);
+        bool music_playing = false;
+        json_t* music_length = json_object_get(config, "music_length");
+        char* music_buf = NULL;
+        MODPlay music;
+        if (json_is_integer(music_length)) {
+            FILE* music_mod = fopen(APPS_DIR "/music.mod", "r");
+            int music_length_val = json_integer_value(music_length);
+            music_buf = malloc(music_length_val);
+            fread(music_buf, music_length_val, 1, music_mod);
+            fclose(music_mod);
+
+            MODPlay_Init(&music);
+            MODPlay_SetMOD(&music, music_buf);
+            MODPlay_SetVolume(&music, 63, 63);
+            MODPlay_Start(&music);
         
+            music_playing = true;
+        }
+
+        start_tui(config, winagent);
+
+        if (music_playing) {
+            MODPlay_Stop(&music);
+            free(music_buf);
+        }
+
         free(winagent);
         clear_screen();
         printf("Exiting...\n");

@@ -10,7 +10,6 @@ mkdir -pv dist/libreshop
 echo -e "\n======== creating source distribution ========"
 
 cd ..
-export "CHMOD=$(find . -type f -executable -not -path "./.git/*" | sed -z "s/\n/ /g")"
 zip -r ./app/dist/src.zip . -x ".git/*" "app/dist/*"
 
 
@@ -26,7 +25,7 @@ cp -v ./icon.png dist/libreshop/icon.png
 cd dist
 unzip src.zip -d libreshop_client2
 rm -v src.zip
-echo -e "LibreShop v${VERSION} source distribution\n\nCome into the folder\ncd libreshop_client2\n\nMake the required files executable\nchmod +x ${CHMOD}\n\nBuild the application\n./app/make_zip\n\nOptionally load it on a Wii\nwiiload ./app/LibreShop_v${VERSION}.zip" | zip -z -r "./libreshop/GPL_Source_${VERSION}.zip" libreshop_client2
+echo -e "LibreShop v${VERSION} source distribution\n\nPlease read the README.md for compilation instructions." | zip -z -r "./libreshop/GPL_Source_${VERSION}.zip" libreshop_client2
 rm -rfv libreshop_client2
 
 zip -r "../LibreShop_v${VERSION}.zip" .
