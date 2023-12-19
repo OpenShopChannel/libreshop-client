@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <app version="1">
 	<name>LibreShop</name>
-	<version>0.1</version>
-	<release_date></release_date>
+	<version>$VERSION</version>
+	<release_date>$RELEASE</release_date>
 	<coder>The LibreShop Team</coder>
 	<short_description>Download homebrew apps</short_description>
 	<long_description>LibreShop is an app that lets you download Homebrew apps onto your Wii.
