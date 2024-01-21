@@ -19,7 +19,7 @@ make
 cd app
 cp -v ../libreshop_client2.dol dist/libreshop/boot.dol
 cp -v ../data/default_config.json dist/libreshop/config.json
-sed "s/\$VERSION/${VERSION}/g; s/\$RELEASE/$(date +%Y%m%d%H%M%S)/g" ./meta.xml > dist/libreshop/meta.xml
+cp -v ./meta.xml dist/libreshop/meta.xml
 cp -v ./icon.png dist/libreshop/icon.png
 
 cd dist
@@ -31,4 +31,3 @@ rm -rfv libreshop_client2
 zip -r "../LibreShop_v${VERSION}.zip" .
 cd ..
 rm -rfv dist
-rm -f ../data/acknowledgements.json

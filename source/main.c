@@ -11,7 +11,6 @@
 
 #include <aesndlib.h>
 #include <gcmodplay.h>
-#include <sys/stat.h>
 
 #include <jansson.h>
 
@@ -266,13 +265,14 @@ int main(int argc, char **argv) {
         }
 
         bool music_playing = false;
-        MODPlay music;
+        json_t* music_length = json_object_get(config, "music_length");
         char* music_buf = NULL;
-        struct stat music_stats;
-        if (stat(APPS_DIR "/loop.mod", &music_stats) == 0) {
-            FILE* music_mod = fopen(APPS_DIR "/loop.mod", "r");
-            music_buf = malloc(music_stats.st_size);
-            fread(music_buf, music_stats.st_size, 1, music_mod);
+        MODPlay music;
+        if (json_is_integer(music_length)) {
+            FILE* music_mod = fopen(APPS_DIR "/music.mod", "r");
+            int music_length_val = json_integer_value(music_length);
+            music_buf = malloc(music_length_val);
+            fread(music_buf, music_length_val, 1, music_mod);
             fclose(music_mod);
 
             MODPlay_Init(&music);
