@@ -51,7 +51,7 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
         WPAD_ScanPads();
         
         u32 pressed = WPAD_ButtonsDown(0);
-        if (pressed & WPAD_BUTTON_DOWN || (noscroll && (pressed & WPAD_BUTTON_RIGHT))) {
+        if (pressed & WPAD_BUTTON_DOWN) {
             (*index)++;
             if (noscroll) (*index) = endOfIndex;
             if (*(int*)index >= endOfIndex) {
@@ -62,7 +62,7 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
             ret = 4;
             break;
         }
-        else if (pressed & WPAD_BUTTON_UP || (noscroll && (pressed & WPAD_BUTTON_LEFT))) {
+        else if (pressed & WPAD_BUTTON_UP) {
             (*index)--;
             if (noscroll) (*index) = *(int*)offset - 1;
             if (*(int*)index < *(int*)offset) {
@@ -71,20 +71,6 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
             }
             if (*(int*)index < 0) (*index)++;
             ret = 5;
-            break;
-        }
-        else if (!noscroll && pressed & WPAD_BUTTON_LEFT) {
-            (*index) -= canDisplayAmount;
-            (*offset) -= canDisplayAmount;
-            if (*(int*)index < 0) (*index) = 0;
-            if (*(int*)offset < 0) (*offset) = 0;
-            break;
-        }
-        else if (!noscroll && pressed & WPAD_BUTTON_RIGHT) {
-            (*index) += canDisplayAmount;
-            (*offset) += canDisplayAmount;
-            if (*(int*)index >= limit) (*index) = limit - 1;
-            if (*(int*)offset > maxOffset) (*offset) = maxOffset;
             break;
         }
         else if (pressed & WPAD_BUTTON_HOME) {
@@ -138,7 +124,7 @@ void print_bottombar(int limit, int offset, int file, char* bottom, int noscroll
         buf[i] = ' ';
     }
 
-    printf(LINE OVERSCAN_X_SPACES "%s%s%s", wholeline, buf, bottom);
+    printf(LINE OVERSCAN_X_SPACES "%s%s%s\n" OVERSCAN_Y_LINES_MINUS_1, wholeline, buf, bottom);
     
     free(wholeline);
 }
