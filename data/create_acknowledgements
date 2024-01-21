@@ -6,19 +6,13 @@ export "LINE====================================================================
 # ========================================================================= #
 IFS= read -d "" acknowledgements << EOF
      Hi... The settings aren't implemented yet. Please come back later.
+     (When the software updates, preferably.)
 
      In the meantime, if you need to change repositories, please modify
      the config.json file in the /apps/libreshop directory.
 
      And, if you find any bugs / unintended behaviour, please report it
      in our Discord server. (discord.gg/MaSFgbqynK)
-
-     The LibreShop client
-     (C) $(date +%Y) The LibreShop Team
-     You can find the source code in the distributed ZIP file or online at
-     https://git.donut.eu.org/nez/libreshop_client2/releases/tag/$1
-
-     Built at $(date -u -R)
 EOF
 
 #export "acknowledgements+=

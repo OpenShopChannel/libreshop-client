@@ -1,34 +1,18 @@
 #!/bin/bash
 cd "$(dirname "$0")"/..
-export "VERSION=$(grep VERSION ./source/config.h | sed "s/#define VERSION \"//; s/\"//")"
-rm -f ./data/acknowledgements.json
 make clean
+make
 cd app
-rm -rfv dist LibreShop_v*
+rm -rfv dist LibreShop\ v*
+mkdir -v dist
 mkdir -pv dist/libreshop
 
-echo -e "\n======== creating source distribution ========"
-
-cd ..
-export "CHMOD=$(find . -type f -executable -not -path "./.git/*" | sed -z "s/\n/ /g")"
-zip -r ./app/dist/src.zip . -x ".git/*" "app/dist/*"
-
-
-./data/create_acknowledgements "$VERSION"
-make
-
-cd app
 cp -v ../libreshop_client2.dol dist/libreshop/boot.dol
 cp -v ../data/default_config.json dist/libreshop/config.json
 cp -v ./meta.xml dist/libreshop/meta.xml
 cp -v ./icon.png dist/libreshop/icon.png
 
 cd dist
-unzip src.zip -d libreshop_client2
-rm -v src.zip
-echo -e "LibreShop v${VERSION} source distribution\n\nCome into the folder\ncd libreshop_client2\n\nMake the required files executable\nchmod +x ${CHMOD}\n\nBuild the application\n./app/make_zip\n\nOptionally load it on a Wii\nwiiload ./app/LibreShop_v${VERSION}.zip" | zip -z -r "./libreshop/GPL_Source_${VERSION}.zip" libreshop_client2
-rm -rfv libreshop_client2
-
-zip -r "../LibreShop_v${VERSION}.zip" .
+zip -r "../LibreShop_v$(grep VERSION ../../source/config.h | sed "s/#define VERSION \"//; s/\"//").zip" .
 cd ..
 rm -rfv dist
