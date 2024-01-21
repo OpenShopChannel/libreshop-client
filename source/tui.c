@@ -345,24 +345,26 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
     lines += 2;
 
     const char* description = json_string_value(json_object_get(json_object_get(app, "description"), "long"));
-    int desclen = strlen(description);
-    
-    for (i = 0; i < desclen; j = 0) {
-        fprintf(temp, OVERSCAN_X_SPACES);
+    if (description) {
+        int desclen = strlen(description);
 
-        for (j = i; j < (i + OVERSCAN_X_WRAP_TO) && j < desclen && description[j] != '\n'; j++) {
-            fputc(description[j], temp);
-        }
-        
-        int backupI = i;
-        i = j + (description[j] == '\n');
-        
-        for ((void)j; j < (backupI + OVERSCAN_X_WRAP_TO); j++) {
-            fputc(' ', temp);
-        }
+        for (i = 0; i < desclen; j = 0) {
+            fprintf(temp, OVERSCAN_X_SPACES);
 
-        fprintf(temp, OVERSCAN_X_SPACES);
-        lines++;
+            for (j = i; j < (i + OVERSCAN_X_WRAP_TO) && j < desclen && description[j] != '\n'; j++) {
+                fputc(description[j], temp);
+            }
+
+            int backupI = i;
+            i = j + (description[j] == '\n');
+
+            for ((void)j; j < (backupI + OVERSCAN_X_WRAP_TO); j++) {
+                fputc(' ', temp);
+            }
+
+            fprintf(temp, OVERSCAN_X_SPACES);
+            lines++;
+        }
     }
 
     int index = 0;
