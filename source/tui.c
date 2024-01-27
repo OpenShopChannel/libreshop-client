@@ -121,26 +121,16 @@ void print_bottombar(int limit, int offset, int file, char* bottom, int noscroll
     }
     int start = offset + 1;
     int end = offset + MIN(25 - OVERSCAN_Y_TIMES_2, limit);
-   
-    int linelen =    8   + WINYL_INTLEN(start) + 1 + WINYL_INTLEN(end) + 4  + WINYL_INTLEN(limit) +  1 ;
-    /*            showing                        -                       of                         nul */
-    if (noscroll) linelen = 1;
-    char* wholeline = malloc(linelen);
-    if (!noscroll) sprintf(wholeline, "showing %d-%d of %d", start, end, limit);
-    else wholeline[0] = '\0';
+    int linelen = 0;
+
+    char wholeline[100] = {0};
+    if (!noscroll) sprintf(wholeline, "showing %d-%d of %d%n", start, end, limit, &linelen);
 
     int bottomlen = strlen(bottom);
     int spaces = 77 - OVERSCAN_X * 2 - (linelen - 1) - bottomlen;
 
-    char buf[spaces + 1];
-    buf[spaces] = '\0';
-    for (int i = 0; i < spaces; i++) {
-        buf[i] = ' ';
-    }
-
-    printf(LINE OVERSCAN_X_SPACES "%s%s%s", wholeline, buf, bottom);
-    
-    free(wholeline);
+    /*                                                 we love printf */
+    printf(LINE OVERSCAN_X_SPACES "%s%*s%s", wholeline, spaces, "", bottom);
 }
 
 void progress_bar(int percent, int line) {
@@ -168,7 +158,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     json_t* urls = json_object_get(app, "url");
     json_t* sizes = json_object_get(app, "file_size");
 
-    char* title = malloc(12 + strlen(appname) + 1);
+    char title[100];
     sprintf(title, "Downloading %s", appname);
     char* hostname = strdup(_hostname);
 
@@ -193,7 +183,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     winyl_response w_dl_res = winyl_request(&w_dl, url_info.path, WINYL_REQUEST_SLASH | WINYL_REQUEST_GET_SOCKET);
     free(fullurl);
 
-    FILE* fp = fopen(APPS_DIR "/temp.zip", "w+");
+    FILE* fp = fopen(APPS_DIR "/temp.zip", "wb+");
     char buf[512];
     int received = 0;
     int current = 0;
@@ -311,7 +301,6 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
         if (WPAD_ButtonsDown(0)) break;
     }
 
-    free(title);
     free(hostname);
 }
 
@@ -324,7 +313,7 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
     char timestring[12];
     strftime(timestring, 12, "%d %b %Y", gmtime(&release_ts));
 
-    FILE* temp = fopen(APPS_DIR "/temp.txt", "w+");
+    FILE* temp = fmemopen(0, 0x40000 /* Just in case the user opens YABDM. The app with a 26.8KB meta.xml. */, "w+");
 
     int i = 77, j, lines = 0;
     
@@ -412,7 +401,7 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
     json_t* apps = json_object_get(contents, catslug);
     int appsamount = json_array_size(apps);
     
-    char* title = malloc(8 + strlen(name) + 3 + strlen(categoryname) + 1);
+    char title[100];
     sprintf(title, "Surfing %s > %s", name, categoryname);
 
     int index = 0;
@@ -441,8 +430,6 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
             app_info(config, hostname, json_array_get(apps, index), user_agent);
         }
     }
-
-    free(title);
 }
 
 void surf_repository(json_t* config, const char* hostname, char* user_agent) {
@@ -455,7 +442,7 @@ void surf_repository(json_t* config, const char* hostname, char* user_agent) {
 
     const char* name = json_string_value(json_object_get(information, "name"));
 
-    char* title = malloc(strlen(name) + 1 + 8);
+    char title[100];
     sprintf(title, "Surfing %s", name);
 
     int index = 0;
@@ -484,7 +471,6 @@ void surf_repository(json_t* config, const char* hostname, char* user_agent) {
             surf_category(config, hostname, name, json_array_get(categories, index), user_agent);
         }
     }
-    free(title);
 }
 
 void open_settings() {
