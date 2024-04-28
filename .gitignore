@@ -1,3 +1,5 @@
-app/LibreShop_v*.zip
 build/
 libreshop_client2.*
+libreshop/boot.dol
+libreshop/config.json
+libreshop.zip
