@@ -202,7 +202,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
         current += received;
         int percent = current / total;
         
-        progress_bar(percent, 13);
+        progress_bar(percent, 14);
 
         fwrite(buf, 1, received, fp);
     }
@@ -304,7 +304,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     zip_close(zip);
 
     printf("\x1b[17;%dH(3/3) Installation complete.", OVERSCAN_X + 2);
-    printf("\x1b[%d;%dH     Press any button to continue.", 27 - OVERSCAN_Y, 43 - OVERSCAN_X);
+    printf("\x1b[%d;%dH     Press any button to continue.", 28 - OVERSCAN_Y, 43 - OVERSCAN_X);
 
     while(true) {
         WPAD_ScanPads();
@@ -352,7 +352,8 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
             fprintf(temp, OVERSCAN_X_SPACES);
 
             for (j = i; j < (i + OVERSCAN_X_WRAP_TO) && j < desclen && description[j] != '\n'; j++) {
-                fputc(description[j], temp);
+                if (description[j] != '\t') fputc(description[j], temp);
+                else fputc(' ', temp);
             }
 
             int backupI = i;
