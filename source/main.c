@@ -186,50 +186,32 @@ int main(int argc, char **argv) {
         json_t* repositories = json_object_get(config, "repositories");
         for (int i = 0; i < json_array_size(repositories); i++) {
             char* hostname = strdup(json_string_value(json_array_get(repositories, i)));
-            FILE* temp = fopen(APPS_DIR "/temp.json", "w+");
             winyl host = winyl_open(hostname, 80);
             winyl_add_header(&host, "User-Agent", winagent);
             
-            winyl_response w_info = winyl_request(&host, "/api/v3/information", WINYL_REQUEST_GET_SOCKET);
-
-            int recv;
-            char buf[256];
-            while ((recv = net_recv(w_info.socket, buf, 256, 0)) > 0) {
-                fwrite(buf, recv, 1, temp);
-            }
-            net_close(w_info.socket);
-            winyl_response_close(&w_info);
-            fseek(temp, 0, SEEK_SET);
+            winyl_response w_info = winyl_request(&host, "/api/v3/information", 0);
 
             json_error_t error;
-            json_t* information = json_loadf(temp, 0, &error);
+            json_t* information = json_loads(w_info.body, 0, &error);
+            winyl_response_close(&w_info);
+
             if (!information) {
                 logprint(0, "JSON ");
                 printf("error on line %d: %s\nWhile syncing repository %s, possibly a network error?\n", error.line, error.text, hostname);
-                fclose(temp);
                 home_exit(true);
             }
 
-            winyl_response w_cont = winyl_request(&host, "/api/v3/contents", WINYL_REQUEST_GET_SOCKET);
-            
-            fseek(temp, 0, SEEK_SET);
-            while ((recv = net_recv(w_cont.socket, buf, 256, 0)) > 0) {
-                fwrite(buf, recv, 1, temp);
-            }
-            net_close(w_cont.socket);
-            winyl_response_close(&w_cont);
-            fseek(temp, 0, SEEK_SET);
+            winyl_response w_cont = winyl_request(&host, "/api/v3/contents", 0);
 
+            json_t* contents = json_loads(w_cont.body, 0, &error);
+            winyl_response_close(&w_cont);
             winyl_close(&host);
 
-            json_t* contents = json_loadf(temp, JSON_DISABLE_EOF_CHECK, &error);
             if (!contents) {
                 logprint(0, "JSON ");
                 printf("error on line %d: %s\nWhile obtaining content of %s - possibly a network error?\n", error.line, error.text, hostname);
-                fclose(temp);
                 home_exit(true);
             }
-            fclose(temp);
 
             json_object_set(repos, hostname, json_object());
             json_t* repo = json_object_get(repos, hostname);
