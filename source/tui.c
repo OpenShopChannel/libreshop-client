@@ -48,10 +48,14 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
 
     int ret = 0;
     while(true) {
+
+        PAD_ScanPads();
         WPAD_ScanPads();
         
         u32 pressed = WPAD_ButtonsDown(0);
-        if (pressed & WPAD_BUTTON_DOWN || (noscroll && (pressed & WPAD_BUTTON_RIGHT))) {
+        int gcpressed = PAD_ButtonsDown(0);
+
+        if ( ((pressed & WPAD_BUTTON_DOWN) || (gcpressed & PAD_BUTTON_DOWN)) || (noscroll && ((pressed & WPAD_BUTTON_RIGHT) || (gcpressed & PAD_BUTTON_RIGHT)))) {
             (*index)++;
             if (noscroll) (*index) = endOfIndex;
             if (*(int*)index >= endOfIndex) {
@@ -62,7 +66,7 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
             ret = 4;
             break;
         }
-        else if (pressed & WPAD_BUTTON_UP || (noscroll && (pressed & WPAD_BUTTON_LEFT))) {
+        else if (((pressed & WPAD_BUTTON_UP) || (gcpressed & PAD_BUTTON_UP)) || (noscroll && ((pressed & WPAD_BUTTON_LEFT) || (gcpressed & PAD_BUTTON_LEFT)))) {
             (*index)--;
             if (noscroll) (*index) = *(int*)offset - 1;
             if (*(int*)index < *(int*)offset) {
@@ -73,33 +77,33 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
             ret = 5;
             break;
         }
-        else if (!noscroll && pressed & WPAD_BUTTON_LEFT) {
+        else if (!noscroll && ((pressed & WPAD_BUTTON_LEFT) || (gcpressed & PAD_BUTTON_LEFT))) {
             (*index) -= canDisplayAmount;
             (*offset) -= canDisplayAmount;
             if (*(int*)index < 0) (*index) = 0;
             if (*(int*)offset < 0) (*offset) = 0;
             break;
         }
-        else if (!noscroll && pressed & WPAD_BUTTON_RIGHT) {
+        else if (!noscroll && ((pressed & WPAD_BUTTON_RIGHT) || (gcpressed & PAD_BUTTON_RIGHT))) {
             (*index) += canDisplayAmount;
             (*offset) += canDisplayAmount;
             if (*(int*)index >= limit) (*index) = limit - 1;
             if (*(int*)offset > maxOffset) (*offset) = maxOffset;
             break;
         }
-        else if (pressed & WPAD_BUTTON_HOME) {
+        else if ((pressed & WPAD_BUTTON_HOME) || (gcpressed & PAD_BUTTON_START)) {
             ret = -1;
             break;
         }
-        else if (pressed & WPAD_BUTTON_A) {
+        else if (((pressed & WPAD_BUTTON_A) || (gcpressed & PAD_BUTTON_A))) {
             ret = 1;
             break;
         }
-        else if (pressed & WPAD_BUTTON_B) {
+        else if ((pressed & WPAD_BUTTON_B) || (gcpressed & PAD_BUTTON_B)) {
             ret = 2;
             break;
         }
-        else if (pressed & WPAD_BUTTON_1) {
+        else if ((pressed & WPAD_BUTTON_1) || (gcpressed & PAD_BUTTON_X)) {
             ret = 3;
             break;
         }

@@ -9,6 +9,8 @@
 #include <dirent.h>
 #include <math.h>
 
+#define DEBUG
+
 #include <jansson.h>
 
 #include <winyl/winyl.h>
@@ -51,13 +53,16 @@ void logprint(int type, char *message) {
 }
 
 void home_exit(int message) {
-    if (message) logprint(0, "Press HOME to exit\n");
+    if (message) logprint(0, "Press HOME (START) to exit\n");
     
     while(1) {
         WPAD_ScanPads();
+        PAD_ScanPads();
+
         u32 pressed = WPAD_ButtonsDown(0);
+        int gcpressed = PAD_ButtonsDown(0);
         
-        if (pressed & WPAD_BUTTON_HOME) {
+        if ((pressed & WPAD_BUTTON_HOME) || (gcpressed & PAD_BUTTON_START)) {
             exit(1);
         }
     }
@@ -73,6 +78,7 @@ int main(int argc, char **argv) {
 	VIDEO_Init();
 
 	WPAD_Init();
+    PAD_Init();
 
 	rmode = VIDEO_GetPreferredMode(NULL);
 
@@ -83,6 +89,8 @@ int main(int argc, char **argv) {
 	VIDEO_Configure(rmode);
 
 	VIDEO_SetNextFramebuffer(xfb);
+
+    VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
 
 	VIDEO_SetBlack(FALSE);
 
