@@ -9,8 +9,6 @@
 #include <dirent.h>
 #include <math.h>
 
-#define DEBUG
-
 #include <jansson.h>
 
 #include <winyl/winyl.h>
