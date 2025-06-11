@@ -363,7 +363,7 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
             int backupI = i;
             i = j + (description[j] == '\n');
 
-            for ((void)j; j < (backupI + OVERSCAN_X_WRAP_TO); j++) {
+            for (int j = 0; j < (backupI + OVERSCAN_X_WRAP_TO - 10); j++) {
                 fputc(' ', temp);
             }
 
@@ -372,8 +372,8 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
         }
     }
 
-    int index = 0;
-    int offset = 0;
+    int index = 1;
+    int offset = 2;
     char line[78];
     line[77] = '\0';
     while(true) {
@@ -388,7 +388,7 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
             printf("%s", line);
         }
 
-        print_bottombar(lines, offset, printable - 1, "A to download, B for back, HOME to exit", 0);
+        print_bottombar(lines, offset, printable - 1, "A to download, B for back, HOME (Start) to exit", 0);
 
         int ret = process_inputs(lines, &offset, &index, 1);
         if (ret == 2) break;
@@ -420,8 +420,8 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
     char* title = malloc(8 + strlen(name) + 3 + strlen(categoryname) + 1);
     sprintf(title, "Surfing %s > %s", name, categoryname);
 
-    int index = 0;
-    int offset = 0;
+    int index = 1;
+    int offset = 2;
     while(true) {
         clear_screen();
         print_topbar(title);
@@ -530,7 +530,7 @@ void start_tui(json_t* config, char* user_agent) {
     json_t* repos = json_object_get(config, "repos");
 
     int index = 0;
-    int offset = 0;
+    int offset = 1;
     for (int i = 0; true; i++) {
         if (i != 0 || reposamount != 1) {
             clear_screen();

@@ -267,7 +267,6 @@ int main(int argc, char **argv) {
 
         start_tui(config, winagent);
         
-        free(winagent);
         clear_screen();
         printf("Exiting...\n");
 
