@@ -70,7 +70,7 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
         WPAD_ScanPads();
         
         u32 pressed = WPAD_ButtonsDown(0);
-        int gcpressed = PAD_ButtonsDown(0);
+        u32 gcpressed = PAD_ButtonsDown(0);
 
         if ( ((pressed & WPAD_BUTTON_DOWN) || (gcpressed & PAD_BUTTON_DOWN)) || (noscroll && ((pressed & WPAD_BUTTON_RIGHT) || (gcpressed & PAD_BUTTON_RIGHT)))) {
             (*index)++;
