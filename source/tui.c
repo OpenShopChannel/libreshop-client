@@ -323,7 +323,8 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
 
     while(true) {
         WPAD_ScanPads();
-        if (WPAD_ButtonsDown(0)) break;
+	PAD_ScanPads();
+        if (WPAD_ButtonsDown(0) || PAD_ButtonsDown(0)) break;
     }
     free(title);
     free(hostname);
