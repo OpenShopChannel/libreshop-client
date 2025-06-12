@@ -11,6 +11,7 @@ void debug_pause() {
 }
 
 void debug_npause() {
+	printf("\x1b]1;29H")
 	printf("Press any button to continue...");
 	VIDEO_WaitVSync();
 	debug_pause();
