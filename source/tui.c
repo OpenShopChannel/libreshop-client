@@ -70,7 +70,7 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
         WPAD_ScanPads();
         
         u32 pressed = WPAD_ButtonsDown(0);
-        int gcpressed = PAD_ButtonsDown(0);
+        u32 gcpressed = PAD_ButtonsDown(0);
 
         if ( ((pressed & WPAD_BUTTON_DOWN) || (gcpressed & PAD_BUTTON_DOWN)) || (noscroll && ((pressed & WPAD_BUTTON_RIGHT) || (gcpressed & PAD_BUTTON_RIGHT)))) {
             (*index)++;
@@ -323,7 +323,8 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
 
     while(true) {
         WPAD_ScanPads();
-        if (WPAD_ButtonsDown(0)) break;
+	PAD_ScanPads();
+        if (WPAD_ButtonsDown(0) || PAD_ButtonsDown(0)) break;
     }
     free(title);
     free(hostname);
