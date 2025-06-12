@@ -284,7 +284,6 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
                 }
             }
         }
-        debug_npause();
         free(name);
 
         char* filename = malloc(strlen(stat.name) + 2);
