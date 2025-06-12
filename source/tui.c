@@ -147,11 +147,6 @@ void print_bottombar(int limit, int offset, int file, char* bottom, int noscroll
     /*            showing                        -                       of                         nul */
     if (noscroll) linelen = 1;
     char* wholeline = malloc(linelen);
-    if (wholeline == NULL) {
-        clear_screen();
-        logprint(2, "malloc() FAILED! Aborting...");
-        exit(0);
-    }
     if (!noscroll) sprintf(wholeline, "showing %d-%d of %d", start, end, limit);
     else wholeline[0] = '\0';
 
@@ -165,7 +160,6 @@ void print_bottombar(int limit, int offset, int file, char* bottom, int noscroll
     }
 
     printf(LINE OVERSCAN_X_SPACES "%s%s%s", wholeline, buf, bottom);
-    debug_npause();
     free(wholeline);
 }
 
@@ -195,18 +189,8 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     json_t* sizes = json_object_get(app, "file_size");
 
     char* title = malloc(12 + strlen(appname) + 1);
-    if (title == NULL) {
-        clear_screen();
-        logprint(2, "malloc() FAILED! Aborting...");
-        exit(0);
-    }
     sprintf(title, "Downloading %s", appname);
     char* hostname = strdup(_hostname);
-    if (hostname == NULL) {
-        clear_screen();
-        logprint(2, "strdup() FAILED! Aborting...");
-        exit(0);
-    }
 
     clear_screen();
     print_topbar(title);
@@ -222,11 +206,6 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     print_bottombar(0, 0, 24, "Please wait until the bars finish.", 1);
 
     char* fullurl = strdup(json_string_value(json_object_get(urls, "zip")));
-    if (fullurl == NULL) {
-        clear_screen();
-        logprint(2, "strdup() FAILED! Aborting...");
-        exit(0);
-    }
     struct yuarel url_info;
     yuarel_parse(&url_info, fullurl);
 
@@ -277,11 +256,6 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
         }
 
         char* name = strdup(stat.name);
-        if (name == NULL) {
-        clear_screen();
-        logprint(2, "strdup() FAILED! Aborting...");
-        exit(0);
-    }
         name[0] = '/';
 
         int slashes2 = 0;
@@ -314,20 +288,11 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
         free(name);
 
         char* filename = malloc(strlen(stat.name) + 2);
-        if (title == NULL) {
-            clear_screen();
-            logprint(2, "malloc() FAILED! Aborting...");
-            exit(0);
-        }
         sprintf(filename, "/%s", stat.name);
 
         printf("\x1b[12;0H" BLNK "\x1b[1A" OVERSCAN_X_SPACES "  (%d/%d) Extracting file %s\x1b[12;%dH%%", i + 1, entryamount, filename, 77 - OVERSCAN_X - 3);
 
         FILE* fp = fopen(filename, "wb");
-        if (fp == NULL) {
-            printf("\nCannot open %s.\n", filename);
-            home_exit(true);
-        }
 
         int bufsize = 1024;
         char buf[bufsize];
@@ -361,7 +326,6 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
         WPAD_ScanPads();
         if (WPAD_ButtonsDown(0)) break;
     }
-    debug_npause();
     free(title);
     free(hostname);
 }
