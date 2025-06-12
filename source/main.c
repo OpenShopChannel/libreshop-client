@@ -33,23 +33,6 @@ void printheader() {
     printf("\x1b[40m\n");
 }
 
-void logprint(int type, char *message) {
-	switch(type) {
-		case 1:
-			printf("\x1b[34m[\x1b[32mOK\x1b[34m]");
-			break;
-		case 2:
-			printf("\x1b[34m[\x1b[31m--\x1b[34m]");
-			break;
-		case 3:
-			printf("\x1b[31m!!\x1b[34m]");
-			break;
-		default:
-			printf("    ");
-	}
-	printf(" \x1b[37m%s", message);
-}
-
 void home_exit(int message) {
     if (message) logprint(0, "Press HOME (START) to exit\n");
     
