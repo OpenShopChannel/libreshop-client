@@ -41,7 +41,7 @@ void home_exit(int message) {
         PAD_ScanPads();
 
         u32 pressed = WPAD_ButtonsDown(0);
-        int gcpressed = PAD_ButtonsDown(0);
+        u32 gcpressed = PAD_ButtonsDown(0);
         
         if ((pressed & WPAD_BUTTON_HOME) || (gcpressed & PAD_BUTTON_START)) {
             exit(1);
