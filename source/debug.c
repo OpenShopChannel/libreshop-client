@@ -11,12 +11,7 @@ void debug_pause() {
 }
 
 void debug_npause() {
-	printf("\x1b]1;29H")
-	printf("Press any button to continue...");
+	printf("Press any button to continue...\n");
 	VIDEO_WaitVSync();
 	debug_pause();
-	for (size_t i = 0; i < 31; i++)
-	{
-		printf("\b \b");
-	}
 }

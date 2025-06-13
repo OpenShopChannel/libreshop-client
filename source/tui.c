@@ -26,23 +26,6 @@ void clear_screen() {
     printf("\x1b[2J");
 }
 
-void logprint(int type, char *message) {
-	switch(type) {
-		case 1:
-			printf("\x1b[34m[\x1b[32mOK\x1b[34m]");
-			break;
-		case 2:
-			printf("\x1b[34m[\x1b[31m--\x1b[34m]");
-			break;
-		case 3:
-			printf("\x1b[31m!!\x1b[34m]");
-			break;
-		default:
-			printf("    ");
-	}
-	printf(" \x1b[37m%s", message);
-}
-
 void print_topbar(char* msg) {
     int spacesneeded = 77 - OVERSCAN_X * 2 -     11    -   2  - strlen(msg) - strlen(VERSION);
     /*                                      LibreShop_v spaces */
@@ -160,6 +143,7 @@ void print_bottombar(int limit, int offset, int file, char* bottom, int noscroll
     }
 
     printf(LINE OVERSCAN_X_SPACES "%s%s%s", wholeline, buf, bottom);
+    
     free(wholeline);
 }
 
@@ -284,6 +268,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
                 }
             }
         }
+
         free(name);
 
         char* filename = malloc(strlen(stat.name) + 2);
@@ -292,6 +277,10 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
         printf("\x1b[12;0H" BLNK "\x1b[1A" OVERSCAN_X_SPACES "  (%d/%d) Extracting file %s\x1b[12;%dH%%", i + 1, entryamount, filename, 77 - OVERSCAN_X - 3);
 
         FILE* fp = fopen(filename, "wb");
+        if (fp == NULL) {
+            printf("\nCannot open %s.\n", filename);
+            home_exit(true);
+        }
 
         int bufsize = 1024;
         char buf[bufsize];
@@ -322,10 +311,11 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     printf("\x1b[%d;%dH     Press any button to continue.", 28 - OVERSCAN_Y, 43 - OVERSCAN_X);
 
     while(true) {
+        PAD_ScanPads();
         WPAD_ScanPads();
-	PAD_ScanPads();
         if (WPAD_ButtonsDown(0) || PAD_ButtonsDown(0)) break;
     }
+
     free(title);
     free(hostname);
 }
@@ -360,24 +350,27 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
     lines += 2;
 
     const char* description = json_string_value(json_object_get(json_object_get(app, "description"), "long"));
-    int desclen = strlen(description);
-    
-    for (i = 0; i < desclen; j = 0) {
-        fprintf(temp, OVERSCAN_X_SPACES);
+    if (description) {
+        int desclen = strlen(description);
 
-        for (j = i; j < (i + OVERSCAN_X_WRAP_TO) && j < desclen && description[j] != '\n'; j++) {
-            fputc(description[j], temp);
-        }
-        
-        int backupI = i;
-        i = j + (description[j] == '\n');
-        
-        for ((void)j; j < (backupI + OVERSCAN_X_WRAP_TO); j++) {
-            fputc(' ', temp);
-        }
+        for (i = 0; i < desclen; j = 0) {
+            fprintf(temp, OVERSCAN_X_SPACES);
 
-        fprintf(temp, OVERSCAN_X_SPACES);
-        lines++;
+            for (j = i; j < (i + OVERSCAN_X_WRAP_TO) && j < desclen && description[j] != '\n'; j++) {
+                if (description[j] != '\t') fputc(description[j], temp);
+                else fputc(' ', temp);
+            }
+
+            int backupI = i;
+            i = j + (description[j] == '\n');
+
+            for ((void)j; j < (backupI + OVERSCAN_X_WRAP_TO); j++) {
+                fputc(' ', temp);
+            }
+
+            fprintf(temp, OVERSCAN_X_SPACES);
+            lines++;
+        }
     }
 
     int index = 0;
@@ -396,7 +389,7 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
             printf("%s", line);
         }
 
-        print_bottombar(lines, offset, printable - 1, "A to download, B for back, HOME to exit", 0);
+        print_bottombar(lines, offset, printable - 1, "A to download, B for back, HOME (Start) to exit", 0);
 
         int ret = process_inputs(lines, &offset, &index, 1);
         if (ret == 2) break;
@@ -454,6 +447,7 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
             app_info(config, hostname, json_array_get(apps, index), user_agent);
         }
     }
+
     free(title);
 }
 
@@ -555,7 +549,7 @@ void start_tui(json_t* config, char* user_agent) {
                 printf("%s: %s\n", provider, name);
             }
 
-            print_bottombar(reposamount, offset, printable - 1, "A to engage, 1 for settings, HOME (Start) to exit", 0);
+            print_bottombar(reposamount, offset, printable - 1, "A to engage, 1 (X) for settings, HOME (Start) to exit", 0);
         }
         int ret = (i == 0 && reposamount == 1) ? 1 : process_inputs(reposamount, &offset, &index, 0);
 
