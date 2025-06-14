@@ -6,7 +6,8 @@
 void debug_pause() {
 	while(1) {
 		WPAD_ScanPads();
-		if (WPAD_ButtonsDown(0)) break;
+		PAD_ScanPads();
+		if (WPAD_ButtonsDown(0) || PAD_ButtonsDown(0)) break;
 	}
 }
 
