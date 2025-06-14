@@ -54,7 +54,8 @@ void home_exit(int message) {
     if (message) logprint(0, "Press HOME (Start) to exit\n");
     
     while(1) {
-        PAD_ScanPads();
+        VIDEO_WaitVSync();
+        PAD_ScanPads();  
         WPAD_ScanPads();
         u32 pressed = WPAD_ButtonsDown(0);
         u16 gcpressed = PAD_ButtonsDown(0);

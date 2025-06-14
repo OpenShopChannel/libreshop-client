@@ -49,7 +49,8 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
     int ret = 0;
     while(true) {
 
-        PAD_ScanPads();
+        VIDEO_WaitVSync();
+        PAD_ScanPads();        
         WPAD_ScanPads();
         
         u32 pressed = WPAD_ButtonsDown(0);
@@ -311,7 +312,8 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     printf("\x1b[%d;%dH     Press any button to continue.", 28 - OVERSCAN_Y, 43 - OVERSCAN_X);
 
     while(true) {
-        PAD_ScanPads();
+        VIDEO_WaitVSync();
+        PAD_ScanPads();  
         WPAD_ScanPads();
         if (WPAD_ButtonsDown(0) || PAD_ButtonsDown(0)) break;
     }
