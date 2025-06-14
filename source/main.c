@@ -75,6 +75,7 @@ int main(int argc, char **argv) {
 	VIDEO_Init();
 
 	WPAD_Init();
+    PAD_Init();
 
 	rmode = VIDEO_GetPreferredMode(NULL);
 
