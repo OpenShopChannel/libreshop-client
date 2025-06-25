@@ -51,13 +51,16 @@ void logprint(int type, char *message) {
 }
 
 void home_exit(int message) {
-    if (message) logprint(0, "Press HOME to exit\n");
+    if (message) logprint(0, "Press HOME (Start) to exit\n");
     
     while(1) {
+        VIDEO_WaitVSync();
+        PAD_ScanPads();  
         WPAD_ScanPads();
         u32 pressed = WPAD_ButtonsDown(0);
+        u16 gcpressed = PAD_ButtonsDown(0);
         
-        if (pressed & WPAD_BUTTON_HOME) {
+        if (pressed & WPAD_BUTTON_HOME || gcpressed & PAD_BUTTON_START) {
             exit(1);
         }
     }
@@ -73,6 +76,7 @@ int main(int argc, char **argv) {
 	VIDEO_Init();
 
 	WPAD_Init();
+    PAD_Init();
 
 	rmode = VIDEO_GetPreferredMode(NULL);
 

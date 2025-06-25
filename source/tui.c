@@ -48,10 +48,15 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
 
     int ret = 0;
     while(true) {
+
+        VIDEO_WaitVSync();
+        PAD_ScanPads();        
         WPAD_ScanPads();
         
         u32 pressed = WPAD_ButtonsDown(0);
-        if (pressed & WPAD_BUTTON_DOWN || (noscroll && (pressed & WPAD_BUTTON_RIGHT))) {
+        u16 gcpressed = PAD_ButtonsDown(0);
+
+        if ( ((pressed & WPAD_BUTTON_DOWN) || (gcpressed & PAD_BUTTON_DOWN)) || (noscroll && ((pressed & WPAD_BUTTON_RIGHT) || (gcpressed & PAD_BUTTON_RIGHT)))) {
             (*index)++;
             if (noscroll) (*index) = endOfIndex;
             if (*(int*)index >= endOfIndex) {
@@ -62,7 +67,7 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
             ret = 4;
             break;
         }
-        else if (pressed & WPAD_BUTTON_UP || (noscroll && (pressed & WPAD_BUTTON_LEFT))) {
+        else if (((pressed & WPAD_BUTTON_UP) || (gcpressed & PAD_BUTTON_UP)) || (noscroll && ((pressed & WPAD_BUTTON_LEFT) || (gcpressed & PAD_BUTTON_LEFT)))) {
             (*index)--;
             if (noscroll) (*index) = *(int*)offset - 1;
             if (*(int*)index < *(int*)offset) {
@@ -73,33 +78,33 @@ int process_inputs(int limit, int* offset, int* index, int noscroll) {
             ret = 5;
             break;
         }
-        else if (!noscroll && pressed & WPAD_BUTTON_LEFT) {
+        else if (!noscroll && ((pressed & WPAD_BUTTON_LEFT) || (gcpressed & PAD_BUTTON_LEFT))) {
             (*index) -= canDisplayAmount;
             (*offset) -= canDisplayAmount;
             if (*(int*)index < 0) (*index) = 0;
             if (*(int*)offset < 0) (*offset) = 0;
             break;
         }
-        else if (!noscroll && pressed & WPAD_BUTTON_RIGHT) {
+        else if (!noscroll && ((pressed & WPAD_BUTTON_RIGHT) || (gcpressed & PAD_BUTTON_RIGHT))) {
             (*index) += canDisplayAmount;
             (*offset) += canDisplayAmount;
             if (*(int*)index >= limit) (*index) = limit - 1;
             if (*(int*)offset > maxOffset) (*offset) = maxOffset;
             break;
         }
-        else if (pressed & WPAD_BUTTON_HOME) {
+        else if ((pressed & WPAD_BUTTON_HOME) || (gcpressed & PAD_BUTTON_START)) {
             ret = -1;
             break;
         }
-        else if (pressed & WPAD_BUTTON_A) {
+        else if (((pressed & WPAD_BUTTON_A) || (gcpressed & PAD_BUTTON_A))) {
             ret = 1;
             break;
         }
-        else if (pressed & WPAD_BUTTON_B) {
+        else if ((pressed & WPAD_BUTTON_B) || (gcpressed & PAD_BUTTON_B)) {
             ret = 2;
             break;
         }
-        else if (pressed & WPAD_BUTTON_1) {
+        else if ((pressed & WPAD_BUTTON_1) || (gcpressed & PAD_BUTTON_X)) {
             ret = 3;
             break;
         }
@@ -252,7 +257,7 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
                             check = opendir(name);
                             if (!check) {
                                 if (mkdir(name, 0600) != 0) {
-                                    printf("\ncreating directory %s failed - home to exit\n", name);
+                                    printf("\ncreating directory %s failed - HOME (Start) to exit\n", name);
                                     home_exit(true);
                                 }
                             }
@@ -307,8 +312,10 @@ void download_app(const char* appname, const char* _hostname, json_t* app, char*
     printf("\x1b[%d;%dH     Press any button to continue.", 28 - OVERSCAN_Y, 43 - OVERSCAN_X);
 
     while(true) {
+        VIDEO_WaitVSync();
+        PAD_ScanPads();  
         WPAD_ScanPads();
-        if (WPAD_ButtonsDown(0)) break;
+        if (WPAD_ButtonsDown(0) || PAD_ButtonsDown(0)) break;
     }
 
     free(title);
@@ -384,7 +391,7 @@ void app_info(json_t* config, const char* hostname, json_t* app, char* user_agen
             printf("%s", line);
         }
 
-        print_bottombar(lines, offset, printable - 1, "A to download, B for back, HOME to exit", 0);
+        print_bottombar(lines, offset, printable - 1, "A to download, B for back, HOME (Start) to exit", 0);
 
         int ret = process_inputs(lines, &offset, &index, 1);
         if (ret == 2) break;
@@ -430,7 +437,7 @@ void surf_category(json_t* config, const char* hostname, const char* name, json_
             printf("%s\n", json_string_value(json_object_get(app, "name")));
         }
 
-        print_bottombar(appsamount, offset, printable - 1, "A to engage, B for back, HOME to exit", 0);
+        print_bottombar(appsamount, offset, printable - 1, "A to engage, B for back, HOME (Start) to exit", 0);
         int ret = process_inputs(appsamount, &offset, &index, 0);
         if (ret == 2) break;
         else if (ret == -1) {
@@ -473,7 +480,7 @@ void surf_repository(json_t* config, const char* hostname, char* user_agent) {
             printf("%s\n", json_string_value(json_object_get(category, "display_name")));
         }
 
-        print_bottombar(arraysize, offset, processed - 1, "A to engage, B for back, HOME to exit", 0);
+        print_bottombar(arraysize, offset, processed - 1, "A to engage, B for back, HOME (Start) to exit", 0);
         int ret = process_inputs(arraysize, &offset, &index, 0);
         if (ret == 2) break;
         else if (ret == -1) {
@@ -508,7 +515,7 @@ void open_settings() {
             printf("%s", buf);
         }
 
-        print_bottombar(lines, offset, printable - 1, "B for back, HOME to exit", 0);
+        print_bottombar(lines, offset, printable - 1, "B for back, HOME (Start) to exit", 0);
 
         int ret = process_inputs(lines, &offset, &index, 1);
         if (ret == 2) break;
@@ -544,7 +551,7 @@ void start_tui(json_t* config, char* user_agent) {
                 printf("%s: %s\n", provider, name);
             }
 
-            print_bottombar(reposamount, offset, printable - 1, "A to engage, 1 for settings, HOME to exit", 0);
+            print_bottombar(reposamount, offset, printable - 1, "A to engage, 1 (X) for settings, HOME (Start) to exit", 0);
         }
         int ret = (i == 0 && reposamount == 1) ? 1 : process_inputs(reposamount, &offset, &index, 0);
 
