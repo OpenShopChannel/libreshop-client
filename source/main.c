@@ -73,7 +73,7 @@ int main(int argc, char **argv) {
 	char gateway[16] = {0};
 	char netmask[16] = {0};
 
-	VIDEO_Init();
+    VIDEO_Init();
 
 	WPAD_Init();
     PAD_Init();
@@ -84,11 +84,13 @@ int main(int argc, char **argv) {
 
 	console_init(xfb,20,20,rmode->fbWidth,rmode->xfbHeight,rmode->fbWidth*VI_DISPLAY_PIX_SZ);
 
-	VIDEO_Configure(rmode);
+    VIDEO_Configure(rmode);
 
 	VIDEO_SetNextFramebuffer(xfb);
 
-	VIDEO_SetBlack(FALSE);
+	VIDEO_ClearFrameBuffer(rmode, xfb, COLOR_BLACK);
+
+	VIDEO_SetBlack(false);
 
 	VIDEO_Flush();
 
@@ -265,7 +267,7 @@ int main(int argc, char **argv) {
 
         start_tui(config, winagent);
         
-        free(winagent);
+        if (winagent) free(winagent);
         clear_screen();
         printf("Exiting...\n");
 
