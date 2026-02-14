@@ -5,9 +5,10 @@ Wii Homebrew downloader. Powered by Open Shop Channel
 ### Build instructions
 Before building, install these dependencies:
 ```
-pacman -S ppc-zip ppc-jansson wii-winyl ppc-yuarel
+pacman -S ppc-zip ppc-jansson wii-winyl ppc-yuarel libmad --needed
 ```
 You will need to add the [nez-wii](https://wii.nezbednik.eu.org) pacman repository.
+
 
 ```
 ./data/create_acknowledgements

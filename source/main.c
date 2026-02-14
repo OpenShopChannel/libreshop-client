@@ -14,13 +14,22 @@
 #include <winyl/winyl.h>
 #include <winyl/request.h>
 #include <winyl/version.h>
+#include <asndlib.h>
+#include <mp3player.h>
+//can we also include my will to live
+#include <ogc/lwp.h>
+#include <unistd.h>
 #include <winyl/header.h>
 
+
+#include "loop_mp3.h" // when i feel like it i might make repos be able to have their own music
 #include "debug.h"
 #include "config.h"
 #include "tui.h"
 
 #include "default_config_json.h"
+static bool loading = true; // what is the point of this
+static lwp_t background_thread = LWP_THREAD_NULL; // uh..sure past me?
 
 static void *xfb = NULL;
 static GXRModeObj *rmode = NULL;
@@ -49,7 +58,22 @@ void logprint(int type, char *message) {
 	}
 	printf(" \x1b[37m%s", message);
 }
-
+static void* loop_sound(void* arg) {
+    // i hate this code
+    while (1) {
+        if (loading) {
+            if (!MP3Player_IsPlaying()) {
+                MP3Player_PlayBuffer(loop_mp3, loop_mp3_size, NULL);
+            }
+        } else {
+            if (MP3Player_IsPlaying()) {
+                MP3Player_Stop();
+            }
+        }
+        usleep(10 * 1000); // make the cpu not commit suicide
+    }
+    return NULL;
+}
 void home_exit(int message) {
     if (message) logprint(0, "Press HOME (Start) to exit\n");
     
@@ -77,6 +101,8 @@ int main(int argc, char **argv) {
 
 	WPAD_Init();
     PAD_Init();
+    ASND_Init();
+    MP3Player_Init();
 
 	rmode = VIDEO_GetPreferredMode(NULL);
 
@@ -99,12 +125,15 @@ int main(int argc, char **argv) {
 
 	printheader();
 	logprint(0, "Welcome to LibreShop!\n");
+
+    LWP_CreateThread(&background_thread,loop_sound,NULL,NULL,0,80); //create the thread so music actually plays
 #ifdef DEBUG
 	logprint(2, "Warning! You are running a DEBUG build.\n");
 #endif
 
         printf("\n");
         logprint(0, "Initializing network.\n");
+
 
 	ret = if_config(localip, netmask, gateway, TRUE, 20);
 

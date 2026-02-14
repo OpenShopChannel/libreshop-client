@@ -21,7 +21,7 @@ EOF
 
 # wrap it for the Wii
 echo -n > acknowledgements.json
-echo "acknowledgements.json"
+echo "acknowledgements.json" # and i can assure you, that is not a json file.
 echo "+-----------------------------------------------------------------------------+"
 while IFS= read -r p; do
     printf "|%-77s|\n" "${p}"
